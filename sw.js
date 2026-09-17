@@ -5,7 +5,7 @@
 // chính (trang chính, biểu tượng...) vào bộ nhớ đệm ngay trên máy. Từ lần
 // sau, nếu không có mạng, trình duyệt lấy thẳng từ bộ nhớ đệm đó ra dùng.
 
-const TEN_CACHE = "so-hoi-vien-v139";
+const TEN_CACHE = "so-hoi-vien-v151";
 const CAC_FILE_CAN_LUU = [
   "./",
   "./index.html",
