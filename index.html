@@ -93,11 +93,16 @@
      thành 3 nút chung 1 hàng — icon xếp TRÊN, chữ 2 dòng NGẮN xếp DƯỚI
      (thay vì icon+chữ nằm ngang) để tiết kiệm chiều rộng, đủ chỗ cho 3 nút
      trên điện thoại hẹp nhất (đã đo thực tế ở 375px, xem báo cáo). */
-  .cong-cu-chihoi-hang{display:flex;gap:6px;flex:1;min-width:0;box-sizing:border-box;}
-  .cong-cu-chihoi-nut{flex:1;min-width:0;box-sizing:border-box;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:2px;padding:6px 4px;line-height:1.15;
+  .cong-cu-chihoi-hang{display:flex;gap:6px;flex:1;min-width:0;box-sizing:border-box;align-items:flex-start;}
+  /* THU GỌN CHIỀU CAO (2026-09-18): ".btn.small" (2 lớp class, độ đặc hiệu
+     cao hơn) trước đây âm thầm đè mất padding định nghĩa ở đây (1 lớp
+     class) — nút thực tế vẫn cao vì dùng padding 5px 9px của .btn.small,
+     không phải padding định nghĩa ở đây. Nay viết rõ ".btn.small.cong-cu-
+     chihoi-nut" (3 lớp) để chắc chắn thắng, giảm thật padding/gap/icon. */
+  .btn.small.cong-cu-chihoi-nut{flex:1;min-width:0;box-sizing:border-box;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:1px;padding:3px 4px;line-height:1.15;
     white-space:normal;text-align:center;}
-  .cong-cu-chihoi-icon{font-size:16px;line-height:1;}
+  .cong-cu-chihoi-icon{font-size:12px;line-height:1;}
   input,select{font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;border-radius:6px;
     border:1px solid var(--line);background:var(--card);color:var(--ink);outline:none;}
   input:focus,select:focus{border-color:var(--rice);box-shadow:0 0 0 3px rgba(53,84,58,.12);}
