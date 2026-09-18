@@ -11843,16 +11843,22 @@ function xacNhanChuyenHoiVien(chiHoiNguonId, chiHoiDichId){
 function raSoatGioiTinhTheoCCCD(){
   if(!_yeuCauDangNhap()) return; // CỬA CHẶN ĐĂNG NHẬP (2026-09-17): mở thêm cho Chi hội, không chỉ Quản trị
   // CHI HỘI (2026-09-17): chỉ rà soát đúng chi hội mình đang đăng nhập —
-  // không được đụng tới hội viên chi hội khác. QUẢN TRỊ: vẫn rà soát toàn
-  // bộ như cũ (thao tác kiểm tra dữ liệu tổng thể). Không đổi gì logic so
-  // khớp/sửa bên dưới, chỉ thu hẹp đúng phạm vi dữ liệu đầu vào.
-  const scope = (state.loggedInChiHoi && !state.isAdmin) ? state.members.filter(m=>m.chiHoiId===state.loggedInChiHoi) : state.members;
+  // không được đụng tới hội viên chi hội khác. QUẢN TRỊ (2026-09-18): nếu
+  // đang lọc xuống 1 chi hội cụ thể trên sidebar (activeChiHoi khác "all")
+  // thì chỉ rà soát đúng chi hội đang lọc; nếu đang ở "Tất cả" thì vẫn rà
+  // soát toàn bộ như cũ. Không đổi gì logic so khớp/sửa bên dưới, chỉ thu
+  // hẹp đúng phạm vi dữ liệu đầu vào.
+  const phamViQuet = (state.loggedInChiHoi && !state.isAdmin) ? state.loggedInChiHoi
+    : (state.activeChiHoi!=="all" ? state.activeChiHoi : null);
+  const scope = phamViQuet ? state.members.filter(m=>m.chiHoiId===phamViQuet) : state.members;
   const mauThuan = scope.filter(m=>{
     const t=layGioiTinhTuCCCD(m.cccd);
     return t && t!==m.gioiTinh;
   });
   if(mauThuan.length===0){
-    alert("Không phát hiện hội viên nào có Giới tính hiện tại KHÁC với giới tính giải mã từ Số CCCD.\nDữ liệu Giới tính đang khớp tốt với CCCD.");
+    alert(phamViQuet
+      ? `Không phát hiện hội viên nào của "${chiHoiName(phamViQuet)}" có Giới tính KHÁC với giới tính giải mã từ Số CCCD.\nDữ liệu Giới tính của chi hội này đang khớp tốt với CCCD.`
+      : "Không phát hiện hội viên nào có Giới tính hiện tại KHÁC với giới tính giải mã từ Số CCCD.\nDữ liệu Giới tính đang khớp tốt với CCCD.");
     return;
   }
   const dsHienThi=mauThuan.slice(0,15).map(m=>`• ${m.ten} (${chiHoiName(m.chiHoiId)}) — đang ghi "${m.gioiTinh}", CCCD lại là "${layGioiTinhTuCCCD(m.cccd)}"`).join("\n");
@@ -11870,9 +11876,12 @@ function raSoatGioiTinhTheoCCCD(){
 
 function raSoatNamSinhTheoCCCD(){
   if(!_yeuCauDangNhap()) return; // CỬA CHẶN ĐĂNG NHẬP (2026-09-17): mở thêm cho Chi hội, không chỉ Quản trị
-  // CHI HỘI (2026-09-17): xem chú thích ở raSoatGioiTinhTheoCCCD() — cùng
-  // nguyên tắc thu hẹp phạm vi, không đổi logic so khớp/sửa bên dưới.
-  const scope = (state.loggedInChiHoi && !state.isAdmin) ? state.members.filter(m=>m.chiHoiId===state.loggedInChiHoi) : state.members;
+  // CHI HỘI (2026-09-17)/QUẢN TRỊ LỌC 1 CHI HỘI (2026-09-18): xem chú thích
+  // ở raSoatGioiTinhTheoCCCD() — cùng nguyên tắc thu hẹp phạm vi, không đổi
+  // logic so khớp/sửa bên dưới.
+  const phamViQuet = (state.loggedInChiHoi && !state.isAdmin) ? state.loggedInChiHoi
+    : (state.activeChiHoi!=="all" ? state.activeChiHoi : null);
+  const scope = phamViQuet ? state.members.filter(m=>m.chiHoiId===phamViQuet) : state.members;
   const mauThuan=scope.filter(m=>{
     if(!m.ngaySinh || !/^\d{4}-\d{2}-\d{2}$/.test(m.ngaySinh)) return false;
     const namCCCD=layNamSinhTuCCCD(m.cccd);
@@ -11880,7 +11889,9 @@ function raSoatNamSinhTheoCCCD(){
     return Number(m.ngaySinh.split("-")[0])!==namCCCD;
   });
   if(mauThuan.length===0){
-    alert("Không phát hiện hội viên nào có Năm sinh hiện tại KHÁC với năm sinh giải mã từ Số CCCD.\nDữ liệu Năm sinh đang khớp tốt với CCCD.");
+    alert(phamViQuet
+      ? `Không phát hiện hội viên nào của "${chiHoiName(phamViQuet)}" có Năm sinh KHÁC với năm sinh giải mã từ Số CCCD.\nDữ liệu Năm sinh của chi hội này đang khớp tốt với CCCD.`
+      : "Không phát hiện hội viên nào có Năm sinh hiện tại KHÁC với năm sinh giải mã từ Số CCCD.\nDữ liệu Năm sinh đang khớp tốt với CCCD.");
     return;
   }
   const dsHienThi=mauThuan.slice(0,15).map(m=>`• ${m.ten} (${chiHoiName(m.chiHoiId)}) — đang ghi năm ${m.ngaySinh.split("-")[0]}, CCCD lại là ${layNamSinhTuCCCD(m.cccd)}`).join("\n");
@@ -11900,9 +11911,12 @@ function raSoatNamSinhTheoCCCD(){
 
 function kiemTraTrungLap(){
   if(!_yeuCauDangNhap()) return; // CỬA CHẶN ĐĂNG NHẬP (2026-09-16)
-  // CHI HỘI (2026-09-18): xem chú thích ở raSoatGioiTinhTheoCCCD() — cùng
-  // nguyên tắc thu hẹp phạm vi, không đổi logic gom nhóm/so trùng bên dưới.
-  const scope = (state.loggedInChiHoi && !state.isAdmin) ? state.members.filter(m=>m.chiHoiId===state.loggedInChiHoi) : state.members;
+  // CHI HỘI (2026-09-18)/QUẢN TRỊ LỌC 1 CHI HỘI (2026-09-18): xem chú thích
+  // ở raSoatGioiTinhTheoCCCD() — cùng nguyên tắc thu hẹp phạm vi, không đổi
+  // logic gom nhóm/so trùng bên dưới.
+  const phamViQuet = (state.loggedInChiHoi && !state.isAdmin) ? state.loggedInChiHoi
+    : (state.activeChiHoi!=="all" ? state.activeChiHoi : null);
+  const scope = phamViQuet ? state.members.filter(m=>m.chiHoiId===phamViQuet) : state.members;
   const theoCCCD={};
   scope.forEach(m=>{ if(m.cccd){ (theoCCCD[m.cccd]=theoCCCD[m.cccd]||[]).push(m); } });
   const trungCCCD=Object.entries(theoCCCD).filter(([_,ds])=>ds.length>1);
@@ -11912,7 +11926,9 @@ function kiemTraTrungLap(){
   const trungTenSDT=Object.entries(theoTenSDT).filter(([_,ds])=>ds.length>1);
 
   if(trungCCCD.length===0 && trungTenSDT.length===0){
-    alert("Không phát hiện hội viên nào bị trùng CCCD hoặc trùng tên+SĐT trong danh sách hiện tại.\nNếu vẫn thấy thiếu người, thử dùng ô tìm kiếm ở Danh sách hội viên để tìm đúng tên người nghi bị thiếu.");
+    alert(phamViQuet
+      ? `Không phát hiện hội viên nào của "${chiHoiName(phamViQuet)}" bị trùng CCCD hoặc trùng tên+SĐT.\nNếu vẫn thấy thiếu người, thử dùng ô tìm kiếm ở Danh sách hội viên để tìm đúng tên người nghi bị thiếu.`
+      : "Không phát hiện hội viên nào bị trùng CCCD hoặc trùng tên+SĐT trong danh sách hiện tại.\nNếu vẫn thấy thiếu người, thử dùng ô tìm kiếm ở Danh sách hội viên để tìm đúng tên người nghi bị thiếu.");
     return;
   }
   let noiDung="Phát hiện các trường hợp có thể đã bị gộp nhầm khi nhập liệu:\n\n";
