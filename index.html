@@ -103,6 +103,32 @@
     align-items:center;justify-content:center;gap:1px;padding:3px 4px;line-height:1.15;
     white-space:normal;text-align:center;}
   .cong-cu-chihoi-icon{font-size:12px;line-height:1;}
+  /* KHO BIỂU MẪU – VĂN BẢN (TEST 2026-09-19, theo mockup-khovanban-v2.html):
+     1 danh sách gộp, icon màu + nhãn nhỏ phân biệt nguồn, 3 nút lọc nhanh, dòng
+     thông báo cuối. Cỡ chữ mockup (8,5–11,5px) được nâng lên tối thiểu 12px cho
+     đúng quy tắc chữ nhỏ đã áp dụng từ TS137 (đã khóa zoom nên không được nhỏ hơn). */
+  .vb-tab-loc{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
+  .vb-tab-loc button{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 13px;
+    font-size:12px;font-weight:700;color:#666;cursor:pointer;}
+  .vb-tab-loc button.dang-chon{background:#0E7A5F;color:#fff;border-color:#0E7A5F;}
+  .vb-ds{margin-top:8px;}
+  .vb-dong{display:flex;align-items:center;gap:11px;padding:11px 4px;border-bottom:1px solid rgba(0,0,0,.07);}
+  .vb-dong:last-child{border-bottom:none;}
+  .vb-icon{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+    font-size:17px;flex-shrink:0;}
+  .vb-icon.chung{background:linear-gradient(135deg,#5EEAD4,#0D9488);}
+  .vb-icon.rieng{background:#EAF4EA;}
+  .vb-thongtin{flex:1;min-width:0;}
+  .vb-ten{font-size:13.5px;font-weight:700;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .vb-meta{font-size:12px;color:#777;margin-top:2px;display:flex;align-items:center;flex-wrap:wrap;gap:5px;}
+  .vb-nhan{font-size:12px;font-weight:800;padding:1px 7px;border-radius:8px;text-transform:uppercase;letter-spacing:.2px;}
+  .vb-nhan.chung{background:#CCFBF1;color:#0D9488;}
+  .vb-nhan.moi{background:#FEF3C7;color:#92400E;}
+  .vb-nut{display:flex;gap:5px;flex-shrink:0;}
+  .vb-btn-icon{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;padding:0;}
+  .vb-chan{display:flex;align-items:center;gap:6px;margin-top:8px;padding:8px 12px;background:#FFFBEB;
+    border-top:1px solid #FDE68A;font-size:12px;color:#92400E;border-radius:0 0 8px 8px;}
   input,select{font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;border-radius:6px;
     border:1px solid var(--line);background:var(--card);color:var(--ink);outline:none;}
   input:focus,select:focus{border-color:var(--rice);box-shadow:0 0 0 3px rgba(53,84,58,.12);}
@@ -9579,7 +9605,9 @@ function renderModalVanBan(){
     </div>`;
 }
 
-function renderBieuMau(){
+// (TEST 2026-09-19) Bản render CŨ giữ nguyên, không xóa (quy ước dự án) — đã
+// thay bằng renderBieuMau() mới ở khối "VĂN BẢN DÙNG CHUNG" ngay bên dưới.
+function renderBieuMauCu(){
   const laChiHoiHanChe = state.loggedInChiHoi && !state.isAdmin;
   return `
     ${renderModalVanBan()}
@@ -9603,7 +9631,7 @@ function renderBieuMau(){
 
 // Chỉ phần danh sách kết quả — tách riêng để khi gõ ô tìm kiếm chỉ vẽ lại
 // phần này, không dựng lại ô nhập (xem giải thích ở renderListKetQua).
-function renderBieuMauKetQua(){
+function renderBieuMauKetQuaCu(){
   const dsLoc=filteredVanBan();
   const laChiHoiHanChe = state.loggedInChiHoi && !state.isAdmin;
   return `
@@ -9635,6 +9663,300 @@ function renderBieuMauKetQua(){
       `}
   `;
 }
+
+// =====================================================================
+// VĂN BẢN DÙNG CHUNG (GitHub) — BẢN THỬ NGHIỆM (2026-09-19, CHƯA PHÁT HÀNH)
+// =====================================================================
+// Khi mở màn "Biểu mẫu – Văn bản" VÀ có mạng, app đọc 1 file manifest.json tự
+// duy trì trên GitHub (raw.githubusercontent.com — không giới hạn 60 lượt/giờ
+// như GitHub Contents API) để lấy danh sách văn bản do Quản trị đăng tập
+// trung. NGUYÊN TẮC AN TOÀN (đây là lần đầu app gọi ra internet lấy dữ liệu):
+//  1. MỌI lỗi (mất mạng, GitHub lỗi, URL sai, JSON hỏng, quá 8 giây...) đều
+//     bị bắt và IM LẶNG bỏ qua — không alert, không ném lỗi ra ngoài, không
+//     chặn/khóa phần nào khác của app. Phần "Trên máy này" luôn hiển thị như cũ.
+//  2. Danh sách dùng chung nằm NGOÀI "state" (biến _vbdc bên dưới) nên KHÔNG
+//     bao giờ lọt vào persist / Sao lưu / Xuất / Nhập lại / di trú IndexedDB
+//     chính — chỉ là bộ nhớ đệm hiển thị.
+//  3. Cache lưu ở CSDL IndexedDB RIÊNG ("sohoivien_vbdc"), tách hẳn CSDL chính
+//     "sohoivien_idb" — không đổi schema/phiên bản CSDL chính, không đụng
+//     migration/kiểm tra đối chiếu hiện có.
+// ĐỊNH DẠNG manifest.json (do Quản trị tự soạn trên GitHub):
+//   { "vanBan": [ { "ten":"Mẫu báo cáo Quý III/2026", "file":"mau-bao-cao-q3.pdf",
+//                   "ngay":"2026-09-18", "moi":true } , ... ] }
+//   - "file": tên file nằm CÙNG THƯ MỤC với manifest.json (hoặc URL https đầy đủ)
+//   - "ngay": YYYY-MM-DD; "moi": true để hiện nhãn "Mới" (tùy chọn)
+// >>> KHI TẠO XONG THƯ MỤC/FILE THẬT TRÊN GITHUB: CHỈ CẦN SỬA URL DƯỚI ĐÂY <<<
+const VBDC_MANIFEST_URL = "https://raw.githubusercontent.com/hoinongdantuson-del/hndTuSon/main/van-ban-dung-chung/manifest.json";
+const VBDC_IDB_TEN = "sohoivien_vbdc";
+const VBDC_HET_GIO_MS = 8000;        // quá 8 giây không có phản hồi -> hủy, im lặng
+const VBDC_CACH_LAN_TAI_MS = 60000;  // không tải lại dày hơn 1 lần/phút (kể cả khi lỗi)
+let _vbdc = { ds: [], luc: null };   // {ds:[{id,ten,url,ngayMs,laPdf,moi}], luc: mốc thời gian lần cập nhật}
+let _vbdcDangTai = false;
+let _vbdcLanTaiCuoi = 0;
+let _vbdcDaNapCache = false;
+let _vbLoc = "tatca";                // bộ lọc nhanh: "tatca" | "chung" | "may"
+
+// Chuẩn hóa + kiểm tra nghiêm ngặt dữ liệu manifest; mục nào sai bị bỏ qua.
+// Trả về mảng (có thể rỗng) hoặc null nếu KHÔNG đúng cấu trúc manifest.
+function _vbdcChuanHoa(json, urlManifest){
+  if(!json || typeof json !== "object" || !Array.isArray(json.vanBan)) return null;
+  const ds = [];
+  json.vanBan.forEach(function(x, i){
+    try{
+      if(!x || typeof x !== "object") return;
+      const ten = String(x.ten || "").trim();
+      const fileRaw = String(x.file || "").trim();
+      if(!ten || !fileRaw) return;
+      const u = new URL(fileRaw, urlManifest);
+      if(u.protocol !== "https:") return;   // chỉ chấp nhận https
+      let ngayMs = 0;
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(x.ngay || "").trim());
+      if(m){ const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])); if(!isNaN(d.getTime())) ngayMs = d.getTime(); }
+      const duoi = (fileRaw.split("?")[0].split("#")[0].split(".").pop() || "").toLowerCase();
+      const laPdf = duoi === "pdf" || String(x.loai || "").toLowerCase() === "pdf";
+      ds.push({ id: "dc_" + i, ten: ten, url: u.href, ngayMs: ngayMs, laPdf: laPdf, moi: x.moi === true });
+    }catch(e){}
+  });
+  return ds;
+}
+
+// ---- Cache IndexedDB RIÊNG (mọi hàm dưới đây KHÔNG BAO GIỜ ném lỗi ra ngoài) ----
+function _vbdcMoIdb(){
+  return new Promise(function(ok){
+    try{
+      if(typeof indexedDB === "undefined" || !indexedDB){ ok(null); return; }
+      let xong = false;
+      const ket = function(v){ if(!xong){ xong = true; ok(v); } };
+      const tm = setTimeout(function(){ ket(null); }, 4000);
+      const yc = indexedDB.open(VBDC_IDB_TEN, 1);
+      yc.onupgradeneeded = function(ev){
+        try{ const db = ev.target.result; if(!db.objectStoreNames.contains("cache")) db.createObjectStore("cache"); }catch(e){}
+      };
+      yc.onsuccess = function(ev){
+        clearTimeout(tm);
+        if(xong){ try{ ev.target.result.close(); }catch(e){} return; }
+        ket(ev.target.result);
+      };
+      yc.onerror = function(){ clearTimeout(tm); ket(null); };
+    }catch(e){ ok(null); }
+  });
+}
+async function _vbdcDocCache(){
+  const db = await _vbdcMoIdb();
+  if(!db) return null;
+  try{
+    return await new Promise(function(ok){
+      try{
+        const tx = db.transaction("cache", "readonly");
+        const rq = tx.objectStore("cache").get("manifest");
+        rq.onsuccess = function(){ ok(rq.result || null); };
+        rq.onerror = function(){ ok(null); };
+        tx.onabort = function(){ ok(null); };
+      }catch(e){ ok(null); }
+    });
+  }catch(e){ return null; }
+  finally{ try{ db.close(); }catch(e){} }
+}
+async function _vbdcGhiCache(obj){
+  const db = await _vbdcMoIdb();
+  if(!db) return false;
+  try{
+    return await new Promise(function(ok){
+      try{
+        const tx = db.transaction("cache", "readwrite");
+        tx.objectStore("cache").put(obj, "manifest");
+        tx.oncomplete = function(){ ok(true); };
+        tx.onerror = function(){ ok(false); };
+        tx.onabort = function(){ ok(false); };
+      }catch(e){ ok(false); }
+    });
+  }catch(e){ return false; }
+  finally{ try{ db.close(); }catch(e){} }
+}
+
+// Vẽ lại RIÊNG 3 khung của màn Văn bản (không dựng lại ô tìm kiếm đang gõ, không
+// đụng modal/màn khác). Chỉ chạy nếu người dùng đang ở đúng màn này.
+function _vbdcVeLai(){
+  try{
+    if(state.view !== "bieumau") return;
+    _vbLocHopLe();
+    const a = document.getElementById("bieuMauLoc");   if(a) a.innerHTML = renderBieuMauLoc();
+    const b = document.getElementById("bieuMauKetQua"); if(b) b.innerHTML = renderBieuMauKetQua();
+    const c = document.getElementById("bieuMauChan");   if(c) c.innerHTML = renderBieuMauChan();
+  }catch(e){}
+}
+
+// Tải manifest từ GitHub. TOÀN BỘ bọc try/catch; thất bại = im lặng giữ nguyên
+// danh sách đã có (cache cũ hoặc rỗng). Không alert, không console.error.
+async function _vbdcTai(){
+  if(_vbdcDangTai) return;
+  if(typeof navigator !== "undefined" && navigator.onLine === false) return;   // không có mạng: khỏi gọi
+  if(_vbdcLanTaiCuoi && (Date.now() - _vbdcLanTaiCuoi) < VBDC_CACH_LAN_TAI_MS) return;
+  _vbdcDangTai = true;
+  _vbdcLanTaiCuoi = Date.now();
+  let huy = null;
+  try{
+    const ac = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    if(ac) huy = setTimeout(function(){ try{ ac.abort(); }catch(e){} }, VBDC_HET_GIO_MS);
+    const res = await fetch(VBDC_MANIFEST_URL, { cache: "no-cache", signal: ac ? ac.signal : undefined });
+    if(!res || !res.ok) throw new Error("http");
+    // Service Worker offline có thể trả nhầm trang index.html (không phải JSON):
+    // JSON.parse sẽ ném lỗi và bị bắt ngay dưới đây — coi như thất bại, im lặng.
+    const json = JSON.parse(await res.text());
+    const ds = _vbdcChuanHoa(json, VBDC_MANIFEST_URL);
+    if(!ds) throw new Error("cau-truc");
+    _vbdc = { ds: ds, luc: Date.now() };
+    _vbdcGhiCache({ ds: ds, luc: _vbdc.luc }).catch(function(){});
+    _vbdcVeLai();
+  }catch(e){
+    // IM LẶNG: giữ nguyên _vbdc hiện có (cache cũ nếu có, hoặc rỗng -> mục "Dùng chung" ẩn).
+  }finally{
+    if(huy) clearTimeout(huy);
+    _vbdcDangTai = false;
+  }
+}
+
+// Điểm vào duy nhất, gọi (không chờ) mỗi khi vẽ màn Văn bản: nạp cache trước (hiện
+// ngay danh sách đã biết, kể cả offline) rồi mới thử tải mới.
+async function _vbdcKhoiDong(){
+  try{
+    if(!_vbdcDaNapCache){
+      _vbdcDaNapCache = true;
+      const c = await _vbdcDocCache();
+      if(c && Array.isArray(c.ds) && !(_vbdc.ds && _vbdc.ds.length)){
+        const ds = c.ds.filter(function(v){ return v && typeof v.ten === "string" && typeof v.url === "string" && v.url.indexOf("https://") === 0; });
+        if(ds.length){ _vbdc = { ds: ds, luc: Number(c.luc) || null }; _vbdcVeLai(); }
+      }
+    }
+    await _vbdcTai();
+  }catch(e){}
+}
+
+function _vbLocHopLe(){
+  const coChung = _vbdc.ds.length > 0;
+  if(!coChung) _vbLoc = "tatca";                  // chưa có dùng chung -> không có bộ lọc để chọn
+  else if(["tatca","chung","may"].indexOf(_vbLoc) < 0) _vbLoc = "tatca";
+}
+function setVbLoc(k){
+  _vbLoc = k;
+  _vbdcVeLai();
+}
+
+// Danh sách GỘP 1 khối: "Dùng chung" (mới nhất trước) rồi tới "Trên máy này" (mới
+// nhất trước) — 1 ô tìm kiếm áp dụng cho cả hai nguồn.
+function _vbDanhSachGop(){
+  const tu = boDauTiengViet(String(state.vanBanSearch || "").trim());
+  const chung = _vbdc.ds.map(function(v){ return { nguon:"chung", id:v.id, ten:v.ten, ngayMs:v.ngayMs, laPdf:v.laPdf, moi:v.moi }; })
+    .sort(function(a,b){ return b.ngayMs - a.ngayMs; });
+  const may = state.vanBanKho.map(function(v){ return { nguon:"may", id:v.id, ten:v.tenMau, ngayMs:v.ngayTai, kichThuoc:v.kichThuoc, laPdf:(v.loaiFile||"").includes("pdf") }; })
+    .sort(function(a,b){ return b.ngayMs - a.ngayMs; });
+  let ds = _vbLoc === "chung" ? chung : (_vbLoc === "may" ? may : chung.concat(may));
+  if(tu) ds = ds.filter(function(v){ return boDauTiengViet(v.ten || "").includes(tu); });
+  return ds;
+}
+
+function _vbdcNgayGio(ms){
+  const d = new Date(ms), nay = new Date();
+  const hh = String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
+  return (d.toDateString() === nay.toDateString() ? "hôm nay" : d.toLocaleDateString("vi-VN")) + " " + hh;
+}
+
+// Mở file THẬT trên GitHub (raw.githubusercontent.com) ở tab mới. Không có nút Xóa.
+function _vbdcMoUrl(id){
+  if(!_yeuCauDangNhap()) return;
+  const v = _vbdc.ds.find(function(x){ return x.id === id; });
+  if(!v) return;
+  if(typeof navigator !== "undefined" && navigator.onLine === false){
+    alert("Đang không có mạng nên chưa mở được văn bản dùng chung này.\nHãy thử lại khi có kết nối.");
+    return;
+  }
+  if(!moTabMoi(v.url)) alert("Không mở được văn bản này. Hãy thử lại.");
+}
+function xemVanBanDungChung(id){ _vbdcMoUrl(id); }
+function taiVanBanDungChung(id){ _vbdcMoUrl(id); }
+
+// ---- Giao diện (theo mockup-khovanban-v2.html) ----
+function renderBieuMauLoc(){
+  const nChung = _vbdc.ds.length, nMay = state.vanBanKho.length;
+  if(nChung === 0) return "";   // chưa từng tải được dùng chung -> ẩn bộ lọc, màn hình như cũ
+  const nut = function(k, nhan){ return `<button type="button" class="${_vbLoc===k?'dang-chon':''}" onclick="setVbLoc('${k}')">${nhan}</button>`; };
+  return `<div class="vb-tab-loc">${nut("tatca","Tất cả ("+(nChung+nMay)+")")}${nut("chung","🌐 Dùng chung ("+nChung+")")}${nut("may","📱 Trên máy này ("+nMay+")")}</div>`;
+}
+
+function renderBieuMauChan(){
+  if(_vbdc.ds.length === 0) return "";   // không có dữ liệu dùng chung -> không hiện dòng thông báo nào
+  return `<div class="vb-chan">📶 Văn bản "Dùng chung" cập nhật tự động khi có mạng — lần xem gần nhất: ${_vbdc.luc ? _vbdcNgayGio(_vbdc.luc) : "chưa rõ"}</div>`;
+}
+
+function renderBieuMauKetQua(){
+  const dsLoc = _vbDanhSachGop();
+  const laChiHoiHanChe = state.loggedInChiHoi && !state.isAdmin;
+  if(dsLoc.length === 0){
+    const tongTrong = state.vanBanKho.length === 0 && _vbdc.ds.length === 0;
+    const coTim = String(state.vanBanSearch || "").trim() !== "";
+    return `
+        <div class="empty" style="padding:40px 0;text-align:center;">
+          <div style="font-size:40px;">📂</div>
+          <p style="font-weight:600;margin:8px 0 2px;">${tongTrong ? 'Chưa có biểu mẫu, văn bản nào.' : (coTim ? 'Không tìm thấy văn bản khớp với tìm kiếm.' : 'Chưa có văn bản nào trong mục này.')}</p>
+          ${tongTrong && !laChiHoiHanChe ? `<p style="color:var(--rice-light);font-size:13px;">Bấm "+ Thêm" để tạo kho tài liệu đầu tiên.</p>` : ''}
+        </div>`;
+  }
+  return `<div class="vb-ds">${dsLoc.map(function(v){
+    const ngay = v.ngayMs ? new Date(v.ngayMs).toLocaleDateString("vi-VN") : "";
+    if(v.nguon === "chung"){
+      return `
+        <div class="vb-dong">
+          <div class="vb-icon chung">🌐</div>
+          <div class="vb-thongtin">
+            <div class="vb-ten">${esc(v.ten)}</div>
+            <div class="vb-meta">${v.moi ? '<span class="vb-nhan moi">Mới</span>' : ''}<span class="vb-nhan chung">Dùng chung</span>${ngay ? '<span>· '+ngay+'</span>' : ''}</div>
+          </div>
+          <div class="vb-nut">
+            ${v.laPdf ? `<button type="button" class="vb-btn-icon" title="Xem" aria-label="Xem" onclick="xemVanBanDungChung('${v.id}')">👁</button>` : ''}
+            <button type="button" class="vb-btn-icon" title="Tải" aria-label="Tải" onclick="taiVanBanDungChung('${v.id}')">⬇</button>
+          </div>
+        </div>`;
+    }
+    return `
+        <div class="vb-dong">
+          <div class="vb-icon rieng">📄</div>
+          <div class="vb-thongtin">
+            <div class="vb-ten">${esc(v.ten)}</div>
+            <div class="vb-meta"><span>${dinhDangDungLuong(v.kichThuoc)} · ${ngay}</span></div>
+          </div>
+          <div class="vb-nut">
+            ${v.laPdf ? `<button type="button" class="vb-btn-icon" title="Xem" aria-label="Xem" onclick="xemVanBan('${v.id}')">👁</button>` : ''}
+            <button type="button" class="vb-btn-icon" title="Tải" aria-label="Tải" onclick="taiVanBanXuong('${v.id}')">⬇</button>
+            ${!laChiHoiHanChe ? `<button type="button" class="vb-btn-icon" title="Xóa" aria-label="Xóa" onclick="xoaVanBan('${v.id}')">🗑</button>` : ''}
+          </div>
+        </div>`;
+  }).join("")}</div>`;
+}
+
+function renderBieuMau(){
+  const laChiHoiHanChe = state.loggedInChiHoi && !state.isAdmin;
+  setTimeout(_vbdcKhoiDong, 0);   // không chờ, không chặn việc vẽ màn hình; mọi lỗi đã bị bắt bên trong
+  _vbLocHopLe();
+  return `
+    ${renderModalVanBan()}
+    <div class="panel">
+      <div>
+        <h3 style="margin:0;">📁 Kho Biểu mẫu – Văn bản</h3>
+        <p style="margin:2px 0 0;font-size:12.5px;color:var(--rice-light);">Tài liệu dùng chung phục vụ nghiệp vụ các chi hội.</p>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <input type="text" id="vanBanSearchInput" style="flex:1;min-width:0;" placeholder="🔍 Tìm theo tên văn bản..." value="${esc(state.vanBanSearch)}" oninput="setVanBanSearch(this.value)">
+        ${!laChiHoiHanChe ? `<button class="btn primary" style="flex-shrink:0;white-space:nowrap;" onclick="moModalThemVanBan()">+ Thêm</button>` : ''}
+      </div>
+      <div id="bieuMauLoc">${renderBieuMauLoc()}</div>
+      <div id="bieuMauKetQua">${renderBieuMauKetQua()}</div>
+      <div id="bieuMauChan">${renderBieuMauChan()}</div>
+    </div>
+  `;
+}
+// =====================================================================
+// HẾT KHỐI VĂN BẢN DÙNG CHUNG
+// =====================================================================
 
 // ---------- Thu - Chi tài chính (lưu riêng trên từng máy như hội viên,
 // nhưng CÓ đi kèm "Sao lưu đầy đủ" / "Nhập lại dữ liệu" từ khi đã sửa lỗi —
