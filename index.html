@@ -103,32 +103,6 @@
     align-items:center;justify-content:center;gap:1px;padding:3px 4px;line-height:1.15;
     white-space:normal;text-align:center;}
   .cong-cu-chihoi-icon{font-size:12px;line-height:1;}
-  /* KHO BIỂU MẪU – VĂN BẢN (TEST 2026-09-19, theo mockup-khovanban-v2.html):
-     1 danh sách gộp, icon màu + nhãn nhỏ phân biệt nguồn, 3 nút lọc nhanh, dòng
-     thông báo cuối. Cỡ chữ mockup (8,5–11,5px) được nâng lên tối thiểu 12px cho
-     đúng quy tắc chữ nhỏ đã áp dụng từ TS137 (đã khóa zoom nên không được nhỏ hơn). */
-  .vb-tab-loc{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
-  .vb-tab-loc button{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 13px;
-    font-size:12px;font-weight:700;color:#666;cursor:pointer;}
-  .vb-tab-loc button.dang-chon{background:#0E7A5F;color:#fff;border-color:#0E7A5F;}
-  .vb-ds{margin-top:8px;}
-  .vb-dong{display:flex;align-items:center;gap:11px;padding:11px 4px;border-bottom:1px solid rgba(0,0,0,.07);}
-  .vb-dong:last-child{border-bottom:none;}
-  .vb-icon{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;
-    font-size:17px;flex-shrink:0;}
-  .vb-icon.chung{background:linear-gradient(135deg,#5EEAD4,#0D9488);}
-  .vb-icon.rieng{background:#EAF4EA;}
-  .vb-thongtin{flex:1;min-width:0;}
-  .vb-ten{font-size:13.5px;font-weight:700;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .vb-meta{font-size:12px;color:#777;margin-top:2px;display:flex;align-items:center;flex-wrap:wrap;gap:5px;}
-  .vb-nhan{font-size:12px;font-weight:800;padding:1px 7px;border-radius:8px;text-transform:uppercase;letter-spacing:.2px;}
-  .vb-nhan.chung{background:#CCFBF1;color:#0D9488;}
-  .vb-nhan.moi{background:#FEF3C7;color:#92400E;}
-  .vb-nut{display:flex;gap:5px;flex-shrink:0;}
-  .vb-btn-icon{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#fff;
-    display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;padding:0;}
-  .vb-chan{display:flex;align-items:center;gap:6px;margin-top:8px;padding:8px 12px;background:#FFFBEB;
-    border-top:1px solid #FDE68A;font-size:12px;color:#92400E;border-radius:0 0 8px 8px;}
   input,select{font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;border-radius:6px;
     border:1px solid var(--line);background:var(--card);color:var(--ink);outline:none;}
   input:focus,select:focus{border-color:var(--rice);box-shadow:0 0 0 3px rgba(53,84,58,.12);}
@@ -572,6 +546,7 @@ const MA_KICH_HOAT_QUAN_TRI_HASH = {kieu:"pbkdf2", salt:"6d6406dda83a0649962181e
 const LS_TRASH = "sohoivien_trash";
 const LS_LOG = "sohoivien_log";
 const LS_LASTBACKUP = "sohoivien_lastbackup";
+const LS_PERSIST_KE_TU_BACKUP = "sohoivien_persist_ke_tu_backup"; // TS-IDBPRIMARY: đếm số lần persist() kể từ lần Sao lưu gần nhất, reset về 0 khi exportJSON() chạy — dùng cho banner nhắc sao lưu tăng cường
 const LS_CAIDAT = "sohoivien_caidat";
 const LS_VANBAN = "sohoivien_vanban";
 const LS_THUCHI = "sohoivien_thuchi";
@@ -857,14 +832,29 @@ function persist(){
     const _jsonVanBanC1 = JSON.stringify(state.vanBanKho);
     const _jsonThuChiC1 = JSON.stringify(state.thuChi);
     const _jsonChuanC1 = JSON.stringify(state.danhSachChuan || null);
-    localStorage.setItem(LS_MEMBERS, _jsonMembersC1);
+    // TS-IDBPRIMARY (2026-09-23): "anh" cho IndexedDB (dòng dưới) LUÔN dùng
+    // _jsonMembersC1/_jsonTrashC1 ĐẦY ĐỦ ở trên — checksum/marker KHÔNG bao
+    // giờ đổi. CHỈ nội dung thật sự ghi vào 2 khóa localStorage LS_MEMBERS/
+    // LS_TRASH đổi sang bản rút gọn SAU KHI đã "trưởng thành" (_ts128DaRutGonLS
+    // — xem _ts128ThuChuyenSangRutGon()). Trước khi trưởng thành, ghi ĐẦY ĐỦ
+    // y hệt trước đây — không hồi quy cho tới khi đủ điều kiện an toàn.
+    localStorage.setItem(LS_MEMBERS, _ts128DaRutGonLS ? JSON.stringify(_ts128RutGonMembersArr(state.members)) : _jsonMembersC1);
     localStorage.setItem(LS_CHIHOI, _jsonChiHoiC1);
-    localStorage.setItem(LS_TRASH, _jsonTrashC1);
-    localStorage.setItem(LS_LOG, _jsonLogC1);
+    localStorage.setItem(LS_TRASH, _ts128DaRutGonLS ? JSON.stringify(_ts128RutGonTrashArr(state.trash)) : _jsonTrashC1);
+    // TS-IDBPRIMARY (đợt 3): "log"/"thuChi" đối xứng với members/trash — chỉ
+    // rút gọn khi cờ tương ứng đã lên (do _ts128ThuChuyenSangRutGon() quyết
+    // định, CHỈ khi JSON thật sự vượt ngưỡng đáng rút gọn — xem hàm đó).
+    localStorage.setItem(LS_LOG, _ts128DaRutGonLog ? JSON.stringify(_ts128RutGonLogArr(state.log)) : _jsonLogC1);
     localStorage.setItem(LS_CAIDAT, _jsonCaiDatC1);
     localStorage.setItem(LS_VANBAN, _jsonVanBanC1);
-    localStorage.setItem(LS_THUCHI, _jsonThuChiC1);
+    localStorage.setItem(LS_THUCHI, _ts128DaRutGonThuChi ? JSON.stringify(_ts128RutGonThuChiArr(state.thuChi)) : _jsonThuChiC1);
     localStorage.setItem(LS_CHUAN, _jsonChuanC1);
+    // TS-IDBPRIMARY: đếm số lần persist() kể từ lần Sao lưu gần nhất — dùng
+    // cho banner nhắc sao lưu tăng cường (mục 6). Lỗi ghi (hiếm) bỏ qua êm.
+    try{
+      const _soLanTuBackup = Number(localStorage.getItem(LS_PERSIST_KE_TU_BACKUP) || 0) + 1;
+      localStorage.setItem(LS_PERSIST_KE_TU_BACKUP, String(_soLanTuBackup));
+    }catch(e){}
     // TS128 BƯỚC 15: tạo + ghi "Mốc đồng bộ" NGAY SAU khi 8 khóa dữ liệu ở trên
     // đã ghi xong — cùng khối try, cùng chu kỳ ghi. Bọc riêng try/catch: lỗi ở
     // đây (nếu có) CHỈ ghi vào biến chẩn đoán, TUYỆT ĐỐI không được biến thành
@@ -891,6 +881,12 @@ function persist(){
       // TS128 BƯỚC 35 — R5-A1: truyền demGhi mà CHÍNH tab này biết lúc qua B27
       // guard (_ts128DemGhiHienTai) để chay() làm stale-abort khi CUTOVER bật.
       // null (tab chưa từng biết phiên bản nào) -> chay() không coi là stale.
+      // TS-IDBPRIMARY: tăng đếm "đang ghi IDB dở dang" TRƯỚC khi kích hoạt —
+      // lưới an toàn visibilitychange/pagehide (mục 2) dựa vào biến này để
+      // biết có cần ép ghi/cảnh báo hay không. Giảm lại đúng 1 lần trong
+      // finally của chay() bên trong _ts128GhiMocVaShadowAnToan(), dù thành
+      // công hay lỗi — không bao giờ kẹt số dương vĩnh viễn.
+      _ts128SoGhiIdbDangCho++;
       _ts128GhiMocVaShadowAnToan(_anhChoIdbB21, _checksumMoiB21, _ts128DemGhiHienTai);
     }catch(e){
       _ts128MocDongBoLoi = String(e && e.message || e);
@@ -923,13 +919,20 @@ function persist(){
       err.jaDaBaoLoi = true;
       throw err;
     }
-    // Hết chỗ lưu trữ của trình duyệt (thường do Kho Biểu mẫu chứa nhiều
-    // file nặng cộng dồn) — báo rõ ràng, dễ hiểu, không để lộ lỗi kỹ thuật
-    // khó hiểu như "The quota has been exceeded".
+    // Hết chỗ lưu trữ của trình duyệt — báo rõ ràng, dễ hiểu, không để lộ lỗi
+    // kỹ thuật khó hiểu như "The quota has been exceeded".
+    // AUDIT 2026-09-23 (lỗi hết bộ nhớ thật khi nhập Excel ~17.893 hội viên):
+    // TRƯỚC ĐÂY thông báo LUÔN đổ lỗi cứng cho "Kho Biểu mẫu – Văn bản" dù
+    // đang làm gì. Nay dùng cờ khoá nhập liệu "_b30DangXuLyNhap" để gợi ý ĐÚNG
+    // NGỮ CẢNH khi đang Nhập Excel/Nhập lại dữ liệu.
     if(err && (err.name==="QuotaExceededError" || /quota/i.test(err.message||""))){
       state._boNhoDaDay = true; // bằng chứng thật -> chip/banner chuyển 🔴 ngay
       try{ localStorage.removeItem(LS_BONHO_MOC); }catch(e){} // mốc cache có thể sai -> đo lại lần sau
-      alert("⚠️ Bộ nhớ trình duyệt trên máy này đã ĐẦY, không lưu thêm được dữ liệu!\n\nNguyên nhân thường gặp: Kho Biểu mẫu – Văn bản đang chứa nhiều file nặng cộng dồn lại (đặc biệt hay gặp trên điện thoại, vì điện thoại thường có bộ nhớ trình duyệt nhỏ hơn máy tính).\n\nCách khắc phục: vào \"Biểu mẫu – Văn bản\" → xóa bớt văn bản không cần thiết (nhất là file nặng) → thử lại thao tác vừa rồi.");
+      const dangNhapLieu = typeof _b30DangXuLyNhap !== "undefined" && _b30DangXuLyNhap;
+      const noiDung = dangNhapLieu
+        ? "Nguyên nhân thường gặp: dữ liệu hội viên/chi hội/thu-chi trên máy này đã khá lớn (đợt Nhập Excel/Nhập lại dữ liệu vừa rồi làm bộ nhớ trình duyệt của máy đầy) — không liên quan tới Biểu mẫu – Văn bản.\n\nCách khắc phục: vào \"Danh sách hội viên\" rà soát/xoá bớt hội viên không còn cần lưu (đã Chết/Chuyển đi/Xoá tên từ lâu), hoặc liên hệ Quản trị để được hỗ trợ chuyển bớt dữ liệu sang máy khác qua Sao lưu."
+        : "Nguyên nhân thường gặp: dữ liệu hội viên/chi hội/thu-chi đã tích luỹ nhiều, hoặc \"Kho Biểu mẫu – Văn bản\" đang chứa nhiều file nặng cộng dồn lại (đặc biệt hay gặp trên điện thoại, vì điện thoại thường có bộ nhớ trình duyệt nhỏ hơn máy tính).\n\nCách khắc phục: vào \"Biểu mẫu – Văn bản\" → xóa bớt văn bản không cần thiết (nhất là file nặng) → thử lại thao tác vừa rồi.";
+      alert("⚠️ Bộ nhớ trình duyệt trên máy này đã ĐẦY, không lưu thêm được dữ liệu!\n\n" + noiDung);
       err.jaDaBaoLoi=true; // đánh dấu đã báo lỗi rõ ràng rồi, nơi gọi persist() không cần báo lại lần 2
     } else {
       alert("Có lỗi khi lưu dữ liệu: "+(err&&err.message?err.message:err));
@@ -1349,6 +1352,253 @@ function _ts128ShadowWrite(anhDaChup, mocDaChiDinh){
   try{ return _ts128GhiKvChac(anhDaChup || null, mocDaChiDinh || _ts128MocDongBoGanNhat || null); }
   catch(e){ _ts128ShadowLoi = String(e && e.message || e); return Promise.resolve({ ok:false, loi:_ts128ShadowLoi }); }
 }
+
+// ==== TS-IDBPRIMARY (2026-09-23) — GHI RÚT GỌN cho 2 lát tăng KHÔNG GIỚI HẠN ====
+// Bối cảnh: audit thực tế cho thấy localStorage có hạn mức RIÊNG, nhỏ, cố
+// định (~5-10MB/máy), TÁCH BIỆT khỏi quota IndexedDB (~GB) mà
+// navigator.storage.estimate() báo cáo — xem chú thích _ts128TinhTrangBoNhoHienThi()
+// ở phần chip bộ nhớ. Ở quy mô ~17.893 hội viên, TỔNG 8 lát trong localStorage
+// chạm trần thật này dù dữ liệu hội viên tự nó không hề "nặng".
+// CHỈ "members" và "trash" mới thật sự tăng KHÔNG GIỚI HẠN theo quy mô dùng
+// lâu dài (hàng chục nghìn hội viên qua nhiều năm). "log" đã bị chặn cứng ở
+// LOG_TOI_DA=500 dòng (không bao giờ lớn); "thuChi"/"chiHoi"/"caiDat"/
+// "danhSachChuan" theo đúng bản chất nghiệp vụ 1 Hội cấp phường (~20 chi hội)
+// không bao giờ lớn; "vanBanKho" đã tách payload nặng sang IndexedDB từ TS128
+// BƯỚC 31.2/31.3, trong localStorage chỉ còn metadata nhẹ. Vì vậy CHỈ 2 lát
+// này cần cơ chế rút gọn — 6 lát còn lại LUÔN ghi ĐẦY ĐỦ vào localStorage như
+// trước, KHÔNG đổi gì, giảm tối đa phạm vi & rủi ro thay đổi.
+//
+// Nguyên tắc AN TOÀN cốt lõi: checksum/mốc đồng bộ (LS_MOC_DONG_BO, kho "meta")
+// LUÔN được tính từ DỮ LIỆU ĐẦY ĐỦ trong bộ nhớ (state/_jsonMembersC1...) —
+// GIỐNG HỆT trước đây, KHÔNG đổi — vì vậy cơ chế đối chiếu DA_DONG_BO (BƯỚC 16)
+// và mọi tự-kiểm-tra dựa trên marker đó tiếp tục đúng, KHÔNG bị ảnh hưởng bởi
+// việc localStorage giờ chứa bản rút gọn hay đầy đủ. Bản rút gọn CHỈ là NỘI
+// DUNG thật sự ghi vào 2 khóa LS_MEMBERS/LS_TRASH — không tham gia bất kỳ phép
+// tính checksum/marker nào.
+const LS_DA_RUT_GON = "sohoivien_da_rut_gon_v1"; // "1" = đã chuyển sang ghi rút gọn cho members/trash trong localStorage (bền qua các lần mở app)
+// AUDIT 2026-09-23 (LỖI THẬT xác nhận qua test thiết bị thật — nhập 1 lần
+// Excel ~14.672 hội viên vẫn báo "Bộ nhớ đã ĐẦY"): TRƯỚC ĐÂY điều kiện DUY
+// NHẤT để được rút gọn là "đủ TS128_NGUONG_TRUONG_THANH (5) lần persist()
+// LIÊN TIẾP thành công" — nhưng mergeImportedRows() (Nhập Excel) chỉ gọi
+// persist() ĐÚNG 1 LẦN cho dù file có 1 hay 100.000 dòng (xác nhận lại bằng
+// code: đúng 1 lệnh persist() sau vòng lặp forEach, không có bên trong vòng
+// lặp) — 1 lần nhập lớn KHÔNG BAO GIỜ đủ 5 lần để kích hoạt rút gọn, trong
+// khi CHÍNH lần nhập đó có thể đã làm localStorage đầy ngay lập tức. Nay
+// thêm ĐƯỜNG TẮT KHẨN CẤP: SAU MỖI LẦN persist() thành công (bất kể là lần
+// thứ mấy), nếu dung lượng localStorage THẬT đã chạm ngưỡng khẩn cấp, thử
+// rút gọn NGAY — không chờ đủ 5 lần. Điều kiện "5 lần liên tiếp" GIỮ LẠI
+// như đường mặc định cho dữ liệu tăng chậm/nhỏ (chưa cần rút gọn vội) — 2
+// điều kiện là quan hệ HOẶC (OR), thoả 1 trong 2 là đủ để thử rút gọn.
+const TS128_NGUONG_TRUONG_THANH = 5; // số lần persist() liên tiếp DA_DONG_BO + IDB ACK thành công trước khi được phép rút gọn LẦN ĐẦU (đường mặc định, dữ liệu tăng chậm)
+const TS128_NGUONG_KHAN_CAP_RUT_GON = 0.75; // % dung lượng localStorage THẬT (_tinhTrangBoNho(), không phải storage.estimate()) — vượt ngưỡng này SAU BẤT KỲ persist() nào -> thử rút gọn NGAY LẬP TỨC, bỏ qua yêu cầu 5 lần liên tiếp
+const TS128_NGUONG_IDB_LOI_CANH_BAO = 3; // số lần ghi IndexedDB lỗi LIÊN TIẾP trước khi hiện modal chặn nhẹ (mục 6)
+const TS128_NGUONG_SO_LAN_PERSIST_NHAC_BACKUP = 300; // số lần persist() kể từ lần Sao lưu gần nhất trước khi nhắc, KỂ CẢ chưa đủ 7 ngày (mục 6)
+let _ts128LanPersistLienTucOK = 0;   // đếm liên tục — reset về 0 ngay khi có bất kỳ trục trặc IDB nào
+let _ts128SoLanIdbLoiLienTiep = 0;   // đếm liên tục lỗi IDB — dùng để nâng cấp banner sao lưu (mục 6)
+let _ts128SoGhiIdbDangCho = 0;       // số lượt ghi IndexedDB đang treo (chưa ACK) — lưới an toàn visibilitychange/pagehide dựa vào biến này
+let _ts128DangThuChuyenRutGon = false; // chặn chạy chồng _ts128ThuChuyenSangRutGon()
+// Đọc cờ "đã rút gọn" NGAY LÚC PARSE SCRIPT (đồng bộ, giống hệt cách state
+// đọc localStorage ở đầu file) — để persist() BIẾT NGAY từ lần gọi đầu tiên
+// phải ghi rút gọn hay đầy đủ cho 2 lát này, không cần chờ bất kỳ bước async nào.
+let _ts128DaRutGonLS = (function(){ try{ return localStorage.getItem(LS_DA_RUT_GON) === "1"; }catch(e){ return false; } })();
+// AUDIT 2026-09-23 (đợt 3, theo câu hỏi thực tế của user): "nhật ký" bị chặn
+// cứng LOG_TOI_DA=500 dòng nên KHÔNG BAO GIỜ đủ lớn để cần rút gọn (500 dòng
+// × vài trăm byte ≈ tối đa vài trăm KB, không đáng kể so với hạn mức ~10MB)
+// — CHỦ Ý không rút gọn trừ khi thực sự lớn bất thường (xem ngưỡng kích
+// thước riêng bên dưới, phòng hờ tuyệt đối). "Thu-Chi" thì KHÔNG có giới hạn
+// cứng nào như log — giả định ban đầu "luôn nhỏ" chỉ đúng với 1 Hội cấp
+// phường dùng vài năm, có thể sai nếu dùng nhiều năm/nhiều khoản — nên bổ
+// sung CÙNG cơ chế cho cả 2 lát này, đối xứng với members/trash, nhưng CHỈ
+// thực sự rút gọn khi JSON của ĐÚNG lát đó vượt ngưỡng "đáng rút gọn" riêng
+// (tránh mất chi tiết vô ích cho dữ liệu vốn đã nhỏ).
+const LS_DA_RUT_GON_LOG = "sohoivien_da_rut_gon_log_v1";
+const LS_DA_RUT_GON_THUCHI = "sohoivien_da_rut_gon_thuchi_v1";
+const TS128_NGUONG_KICH_THUOC_DANG_RUT_GON = 100 * 1024; // 100KB — dưới mức này rút gọn không đáng, giữ nguyên đầy đủ
+let _ts128DaRutGonLog = (function(){ try{ return localStorage.getItem(LS_DA_RUT_GON_LOG) === "1"; }catch(e){ return false; } })();
+let _ts128DaRutGonThuChi = (function(){ try{ return localStorage.getItem(LS_DA_RUT_GON_THUCHI) === "1"; }catch(e){ return false; } })();
+
+// Rút gọn 1 hội viên: chỉ giữ đủ để nhận diện "có ai, thuộc chi hội nào, đang
+// trạng thái gì" — KHÔNG đủ để vận hành sổ bình thường (đây là phao cứu sinh
+// tạm thời, không phải chế độ thay thế lâu dài — xem audit đã báo cáo).
+function _ts128RutGonMember(m){
+  if(!m || typeof m !== "object") return m;
+  return { id: m.id, ten: m.ten, chiHoiId: m.chiHoiId, trangThai: m.trangThai };
+}
+function _ts128RutGonMembersArr(arr){
+  return Array.isArray(arr) ? arr.map(_ts128RutGonMember) : arr;
+}
+// Thùng rác: giữ nguyên khung ngoài (id/deletedAt/xoaBoi), chỉ rút gọn hội
+// viên lồng bên trong theo đúng quy tắc trên.
+function _ts128RutGonTrashArr(arr){
+  return Array.isArray(arr) ? arr.map(t => (t && typeof t === "object") ? { ...t, member: _ts128RutGonMember(t.member) } : t) : arr;
+}
+// Rút gọn 1 dòng nhật ký: giữ thời điểm + loại hành động + chi hội (đủ để
+// biết "có hoạt động gì, khi nào, ở đâu"), bỏ tên người thực hiện/hội viên cụ
+// thể (chi tiết, không cốt yếu để biết dữ liệu còn tồn tại).
+function _ts128RutGonLogEntry(l){
+  if(!l || typeof l !== "object") return l;
+  return { ts: l.ts, hanhDong: l.hanhDong, chiHoiId: l.chiHoiId };
+}
+function _ts128RutGonLogArr(arr){
+  return Array.isArray(arr) ? arr.map(_ts128RutGonLogEntry) : arr;
+}
+// Rút gọn 1 khoản Thu-Chi: giữ NGÀY + LOẠI (Thu/Chi) + SỐ TIỀN + chi hội (vẫn
+// còn giá trị sổ sách tối thiểu — biết có khoản gì, bao nhiêu tiền, khi nào),
+// chỉ bỏ nội dung/ghi chú dạng văn bản tự do (phần thường dài, ít cốt yếu để
+// biết "khoản này còn tồn tại" hơn là con số).
+function _ts128RutGonThuChiEntry(t){
+  if(!t || typeof t !== "object") return t;
+  return { id: t.id, ngay: t.ngay, loai: t.loai, soTien: t.soTien, chiHoiId: t.chiHoiId };
+}
+function _ts128RutGonThuChiArr(arr){
+  return Array.isArray(arr) ? arr.map(_ts128RutGonThuChiEntry) : arr;
+}
+
+// Chuyển sang ghi rút gọn cho TỪNG lát trong 4 lát có nguy cơ tăng không
+// kiểm soát (members, trash — LUÔN rút gọn khi đủ điều kiện; log, thuChi —
+// CHỈ rút gọn nếu JSON thật sự đã vượt TS128_NGUONG_KICH_THUOC_DANG_RUT_GON,
+// tránh mất chi tiết vô ích khi dữ liệu vẫn còn nhỏ). Gọi khi đã đủ "trưởng
+// thành" (TS128_NGUONG_TRUONG_THANH lần persist() liên tiếp DA_DONG_BO + IDB
+// ACK thành công) HOẶC đã khẩn cấp (dung lượng localStorage thật vượt
+// TS128_NGUONG_KHAN_CAP_RUT_GON — xem nơi gọi trong _ts128GhiMocVaShadowAnToan()).
+// Mỗi lát đọc lại TỪ IndexedDB "kv" (không phải từ state — để xác nhận ĐÚNG
+// dữ liệu mà lần persist() vừa rồi thật sự đã ACK, tránh dính dữ liệu của 1
+// thao tác khác xen giữa) rồi đối chiếu checksum trước khi ghi đè localStorage
+// — KHÔNG khớp thì KHÔNG chuyển lát đó, thử lại ở lần đạt ngưỡng kế tiếp; các
+// lát KHÁC vẫn được xử lý độc lập, không bị 1 lát lệch làm hỏng cả 4. Bất kỳ
+// lỗi nào ở bất kỳ bước nào -> bỏ qua lát đó, localStorage GIỮ NGUYÊN đầy đủ
+// cho lát đó như trước (an toàn tuyệt đối, không có trạng thái dở dang).
+async function _ts128ThuChuyenSangRutGon(){
+  const _canLamGi = !_ts128DaRutGonLS || !_ts128DaRutGonLog || !_ts128DaRutGonThuChi;
+  if(!_canLamGi || _ts128DangThuChuyenRutGon) return { boQua: true };
+  _ts128DangThuChuyenRutGon = true;
+  const ketQua = {};
+  try{
+    if(!_idbCoSan()) return { boQua: true, lyDo: "khong-co-idb" };
+    let guard;
+    try{ guard = await _ts128XacDinhNguonChuan(); }catch(e){ return { ok:false, loi:String(e&&e.message||e) }; }
+    if(!guard || guard.trangThai !== "DA_DONG_BO") return { ok:false, lyDo:"chua-DA_DONG_BO" };
+
+    // --- members + trash: LUÔN rút gọn khi đủ điều kiện (không xét kích thước riêng) ---
+    if(!_ts128DaRutGonLS){
+      try{
+        const idbMembers = await _idbGet("kv", LS_MEMBERS);
+        const idbTrash = await _idbGet("kv", LS_TRASH);
+        if(!Array.isArray(idbMembers) || !Array.isArray(idbTrash)){
+          ketQua.membersTrash = { ok:false, lyDo:"idb-sai-cau-truc" };
+        } else if(JSON.stringify(idbMembers) !== JSON.stringify(state.members)){
+          ketQua.membersTrash = { ok:false, lyDo:"members-lech-idb-vs-state" };
+        } else if(JSON.stringify(idbTrash) !== JSON.stringify(state.trash)){
+          ketQua.membersTrash = { ok:false, lyDo:"trash-lech-idb-vs-state" };
+        } else {
+          localStorage.setItem(LS_MEMBERS, JSON.stringify(_ts128RutGonMembersArr(idbMembers)));
+          localStorage.setItem(LS_TRASH, JSON.stringify(_ts128RutGonTrashArr(idbTrash)));
+          localStorage.setItem(LS_DA_RUT_GON, "1");
+          _ts128DaRutGonLS = true;
+          ketQua.membersTrash = { ok:true };
+        }
+      }catch(e){ ketQua.membersTrash = { ok:false, loi:String(e&&e.message||e) }; }
+    }
+
+    // --- log: CHỈ rút gọn nếu JSON thật sự đã lớn đáng kể (LOG_TOI_DA=500
+    // dòng nên bình thường KHÔNG BAO GIỜ vào tới đây — chỉ phòng hờ) ---
+    if(!_ts128DaRutGonLog){
+      try{
+        const idbLog = await _idbGet("kv", LS_LOG);
+        const jsonLog = JSON.stringify(idbLog);
+        if(!Array.isArray(idbLog)){
+          ketQua.log = { ok:false, lyDo:"idb-sai-cau-truc" };
+        } else if(jsonLog.length < TS128_NGUONG_KICH_THUOC_DANG_RUT_GON){
+          ketQua.log = { boQua:true, lyDo:"chua-du-lon-khong-can-rut-gon", kichThuoc: jsonLog.length };
+        } else if(jsonLog !== JSON.stringify(state.log)){
+          ketQua.log = { ok:false, lyDo:"log-lech-idb-vs-state" };
+        } else {
+          localStorage.setItem(LS_LOG, JSON.stringify(_ts128RutGonLogArr(idbLog)));
+          localStorage.setItem(LS_DA_RUT_GON_LOG, "1");
+          _ts128DaRutGonLog = true;
+          ketQua.log = { ok:true };
+        }
+      }catch(e){ ketQua.log = { ok:false, loi:String(e&&e.message||e) }; }
+    }
+
+    // --- thuChi: CHỈ rút gọn nếu JSON thật sự đã lớn đáng kể (không có giới
+    // hạn cứng như log -> đây là lát THẬT SỰ cần cơ chế này phòng hờ nhiều năm) ---
+    if(!_ts128DaRutGonThuChi){
+      try{
+        const idbThuChi = await _idbGet("kv", LS_THUCHI);
+        const jsonThuChi = JSON.stringify(idbThuChi);
+        if(!Array.isArray(idbThuChi)){
+          ketQua.thuChi = { ok:false, lyDo:"idb-sai-cau-truc" };
+        } else if(jsonThuChi.length < TS128_NGUONG_KICH_THUOC_DANG_RUT_GON){
+          ketQua.thuChi = { boQua:true, lyDo:"chua-du-lon-khong-can-rut-gon", kichThuoc: jsonThuChi.length };
+        } else if(jsonThuChi !== JSON.stringify(state.thuChi)){
+          ketQua.thuChi = { ok:false, lyDo:"thuchi-lech-idb-vs-state" };
+        } else {
+          localStorage.setItem(LS_THUCHI, JSON.stringify(_ts128RutGonThuChiArr(idbThuChi)));
+          localStorage.setItem(LS_DA_RUT_GON_THUCHI, "1");
+          _ts128DaRutGonThuChi = true;
+          ketQua.thuChi = { ok:true };
+        }
+      }catch(e){ ketQua.thuChi = { ok:false, loi:String(e&&e.message||e) }; }
+    }
+
+    return ketQua;
+  } finally {
+    _ts128DangThuChuyenRutGon = false;
+  }
+}
+// ==== HẾT TS-IDBPRIMARY: GHI RÚT GỌN ====
+
+// ==== TS-IDBPRIMARY (2026-09-23) — LƯỚI AN TOÀN visibilitychange/pagehide ====
+// AUDIT: beforeunload/unload KHÔNG đáng tin cậy trên di động — theo đúng
+// khuyến cáo Page Lifecycle API (Chrome/web.dev): "developers who depend on
+// termination events (beforeunload, pagehide, unload) are likely losing
+// data... treat the hidden state as the likely end of the user's session."
+// Lý do: mọi thao tác thoát app thật (bấm Home, mở app switcher, chuyển app
+// khác, kể cả bắt đầu vuốt tắt) đều khiến app chuyển sang NỀN trước — bắn
+// visibilitychange TRONG LÚC tiến trình còn sống — trước khi hệ điều hành có
+// cơ hội kill tiến trình. Nên visibilitychange (chuyển "hidden") là mốc đúng
+// để coi là "cơ hội cuối" chứ không phải chờ 1 sự kiện lúc bị đóng/kill thật.
+//
+// Hành động cụ thể (không chỉ cảnh báo suông): nếu đang ở chế độ rút gọn
+// (_ts128DaRutGonLS) VÀ còn ghi IndexedDB dở dang (_ts128SoGhiIdbDangCho>0),
+// ghi ĐÈ TẠM THỜI bản ĐẦY ĐỦ (không rút gọn) vào LS_MEMBERS/LS_TRASH — một
+// lần, ĐỒNG BỘ, không phụ thuộc IndexedDB có kịp ACK hay không. Đây là hành
+// động THẬT SỰ bảo vệ dữ liệu, không phải chỉ hỏi người dùng "có chắc muốn
+// thoát" (vốn không áp dụng được cho visibilitychange/pagehide — 2 sự kiện
+// này không cho phép chặn/hỏi lại người dùng). Lần persist() kế tiếp khi mở
+// lại app sẽ tự ghi lại đúng bản rút gọn bình thường — không đổi cờ, không
+// ảnh hưởng logic khác. Nếu chính lệnh ghi khẩn cấp này CŨNG hết chỗ (đúng
+// kịch bản mà rút gọn được sinh ra để né) -> im lặng bỏ qua, chấp nhận rủi ro
+// còn lại (đã trình bày rõ trong audit, không có giải pháp nào khác ở tầng
+// client-side thuần túy).
+function _ts128EpLuuKhanCapKhiAnHoacDong(){
+  // TS-IDBPRIMARY (đợt 3): áp dụng ĐỘC LẬP cho từng lát đang ở chế độ rút
+  // gọn — lát nào CHƯA rút gọn thì localStorage vốn đã có bản đầy đủ, không
+  // cần ép lại. Mỗi lát bọc try/catch RIÊNG để 1 lát lỗi (hiếm, hết chỗ) không
+  // chặn việc ép ghi các lát còn lại.
+  if(_ts128SoGhiIdbDangCho <= 0) return;
+  if(_ts128DaRutGonLS){
+    try{ localStorage.setItem(LS_MEMBERS, JSON.stringify(state.members)); }catch(e){}
+    try{ localStorage.setItem(LS_TRASH, JSON.stringify(state.trash)); }catch(e){}
+  }
+  if(_ts128DaRutGonLog){
+    try{ localStorage.setItem(LS_LOG, JSON.stringify(state.log)); }catch(e){}
+  }
+  if(_ts128DaRutGonThuChi){
+    try{ localStorage.setItem(LS_THUCHI, JSON.stringify(state.thuChi)); }catch(e){}
+  }
+}
+try{
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState === "hidden") _ts128EpLuuKhanCapKhiAnHoacDong();
+  });
+  window.addEventListener("pagehide", _ts128EpLuuKhanCapKhiAnHoacDong);
+  // beforeunload: CHỈ còn là lớp bổ sung cho desktop (đóng tab/Ctrl+W, nơi nó
+  // vẫn tin cậy) — KHÔNG phải lưới an toàn chính (xem audit ở trên).
+  window.addEventListener("beforeunload", _ts128EpLuuKhanCapKhiAnHoacDong);
+}catch(e){}
+// ==== HẾT TS-IDBPRIMARY: LƯỚI AN TOÀN ====
 
 // Migration MỘT LẦN localStorage -> IndexedDB. An toàn:
 //   đọc cũ -> ghi IndexedDB -> đối chiếu -> chỉ đánh dấu thành công khi KHỚP.
@@ -3122,6 +3372,55 @@ function _ts128GhiMocVaShadowAnToan(anh, checksum, demGhiBietTruoc){
       }
     }catch(e){
       _ts128MocDongBoLoi = String(e && e.message || e);
+    } finally {
+      // TS-IDBPRIMARY: đúng 1 lượt ghi IDB vừa xong (thành công hay lỗi) — nhả
+      // đếm "đang chờ" cho lưới an toàn visibilitychange/pagehide. Math.max
+      // phòng trường hợp hiếm chay() được gọi lại ở nhánh lỗi khoá (dòng dưới)
+      // khiến giảm nhiều hơn tăng — không bao giờ để số âm ảnh hưởng logic.
+      _ts128SoGhiIdbDangCho = Math.max(0, _ts128SoGhiIdbDangCho - 1);
+      if(_ts128MocDongBoLoi === null){
+        _ts128SoLanIdbLoiLienTiep = 0;
+        _ts128LanPersistLienTucOK++;
+        // AUDIT 2026-09-23: kiểm tra dung lượng localStorage THẬT (không phải
+        // storage.estimate()) ngay sau MỖI lần persist() thành công — không
+        // chờ đủ 5 lần nếu đã khẩn cấp. _tinhTrangBoNho() đọc state._boNhoBytes
+        // (vừa được persist() gán = _dungLuongDaDung() thật, dòng phía trên
+        // trong persist()) nên luôn PHẢN ÁNH ĐÚNG dung lượng NGAY SAU lần ghi
+        // vừa xong, kể cả đây là persist() ĐẦU TIÊN của cả phiên làm việc.
+        let _khanCapBoNho = false;
+        try{
+          const _t = _tinhTrangBoNho();
+          _khanCapBoNho = _t.moc > 0 && (_t.dung / _t.moc) >= TS128_NGUONG_KHAN_CAP_RUT_GON;
+        }catch(e){}
+        // AUDIT 2026-09-23 (đợt 3): "khẩn cấp" theo TỔNG dung lượng (ở trên)
+        // không đủ để bắt được trường hợp 1 LÁT RIÊNG LẺ (vd Thu-Chi nhiều
+        // năm) đã tự nó lớn dù TỔNG localStorage vẫn còn xa ngưỡng 75% — kiểm
+        // tra thêm kích thước TỪNG lát log/thuChi (dùng "anh" — ảnh đã chụp
+        // đồng bộ ngay lúc persist() gọi tới, ĐÚNG dữ liệu vừa ghi, không tính
+        // lại từ state để tránh dính dữ liệu của 1 thao tác khác xen giữa).
+        let _khanCapLatRieng = false;
+        try{
+          if(!_ts128DaRutGonLog && JSON.stringify(anh.log).length >= TS128_NGUONG_KICH_THUOC_DANG_RUT_GON) _khanCapLatRieng = true;
+          if(!_ts128DaRutGonThuChi && JSON.stringify(anh.thuChi).length >= TS128_NGUONG_KICH_THUOC_DANG_RUT_GON) _khanCapLatRieng = true;
+        }catch(e){}
+        const _conLatChuaRutGon = !_ts128DaRutGonLS || !_ts128DaRutGonLog || !_ts128DaRutGonThuChi;
+        if((_ts128LanPersistLienTucOK >= TS128_NGUONG_TRUONG_THANH || _khanCapBoNho || _khanCapLatRieng) && _conLatChuaRutGon){
+          try{ _ts128ThuChuyenSangRutGon(); }catch(e){} // fire-and-forget, tự an toàn (xem khai báo hàm)
+        }
+        // TS-IDBPRIMARY (mục 6): IDB vừa ghi lành lại -> tự đóng modal cảnh
+        // báo nếu đang mở (không cần người dùng tự bấm đóng khi sự cố đã qua).
+        if(state.canhBaoIdbLoiModal){ state.canhBaoIdbLoiModal = false; try{ render(); }catch(e){} }
+      } else {
+        _ts128LanPersistLienTucOK = 0;
+        _ts128SoLanIdbLoiLienTiep++;
+        // TS-IDBPRIMARY (mục 6): đủ ngưỡng lỗi liên tiếp -> bật modal chặn nhẹ
+        // ĐÚNG 1 LẦN (không mở lại nếu người dùng đã đóng và lỗi vẫn tiếp diễn
+        // ở mức chưa vượt thêm — tránh làm phiền lặp lại mỗi vài giây).
+        if(_ts128SoLanIdbLoiLienTiep === TS128_NGUONG_IDB_LOI_CANH_BAO && !state.canhBaoIdbLoiModal){
+          state.canhBaoIdbLoiModal = true;
+          try{ render(); }catch(e){}
+        }
+      }
     }
   };
   if(_ts128CoHoTroWebLocks()){
@@ -5786,6 +6085,7 @@ async function exportZipDayDu(){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
   localStorage.setItem(LS_LASTBACKUP, String(Date.now()));
+  try{ localStorage.setItem(LS_PERSIST_KE_TU_BACKUP, "0"); }catch(e){} // TS-IDBPRIMARY: vừa sao lưu xong -> reset đếm cho banner nhắc tăng cường
   return { thanhCong: true, manifest, soVanBan: manifestVanBan.length, soThieuPayload: manifestVanBan.filter(v => v.thieuPayload).length };
 }
 
@@ -6021,6 +6321,19 @@ async function _ts128RestoreZipV3(file){
     // ĐỦ nếu persist() lỗi giữa chừng. persist() ở nhánh xử lý hết-bộ-nhớ còn
     // tự đụng thêm khóa phụ (vd LS_BONHO_MOC) -> phải chụp trọn, không chỉ 8 khóa.
     const _b30LsTruoc = {}; for(let _i=0;_i<localStorage.length;_i++){ const _k=localStorage.key(_i); _b30LsTruoc[_k]=localStorage.getItem(_k); }
+    // TS-IDBPRIMARY (2026-09-23, mục 4): NGOÀI localStorage, IndexedDB kho
+    // "kv" (8 lát mirror) + marker "meta" giờ cũng có vai trò quan trọng hơn
+    // (nguồn CHÍNH khi đọc lại lúc boot, xem _ts128KhoiTaoRuntimeAnToan()) —
+    // chụp TRƯỚC + khôi phục ĐÚNG các khóa này nếu persist() báo lỗi, để
+    // IndexedDB không "vượt lên trước" so với state/localStorage vừa hoàn tác.
+    let _b30IdbKvTruoc = null, _b30IdbMetaTruoc = null;
+    if(_idbCoSan()){
+      try{
+        _b30IdbKvTruoc = {};
+        for(const _sd of TS128_SO_DO){ _b30IdbKvTruoc[_sd.lsKey] = await _idbGet("kv", _sd.lsKey); }
+        _b30IdbMetaTruoc = await _idbGet("meta", TS128_MOC_DONG_BO_META_KHOA);
+      }catch(e){ _b30IdbKvTruoc = null; _b30IdbMetaTruoc = null; } // đọc lỗi -> bỏ qua bước khôi phục IDB (localStorage vẫn được hoàn tác đầy đủ như trước)
+    }
     const _b30LatTruoc = {
       members: state.members, chiHoi: state.chiHoi, trash: state.trash, log: state.log,
       caiDat: state.caiDat, thuChi: state.thuChi, danhSachChuan: state.danhSachChuan, vanBanKho: state.vanBanKho,
@@ -6043,6 +6356,20 @@ async function _ts128RestoreZipV3(file){
         for(const _k of _cur){ if(!(_k in _b30LsTruoc)) localStorage.removeItem(_k); }
         for(const _k in _b30LsTruoc){ if(localStorage.getItem(_k) !== _b30LsTruoc[_k]) localStorage.setItem(_k, _b30LsTruoc[_k]); }
       }catch(_){}
+      // TS-IDBPRIMARY (mục 4): khôi phục ĐÚNG kho "kv" + marker "meta" về ĐÚNG
+      // trạng thái đã chụp trước khi commit — nếu chụp thành công ở trên (đọc
+      // lỗi ở bước chụp -> không chụp được gì -> bỏ qua bước này, chấp nhận
+      // IDB có thể lệch 1 nhịp, boot gate sẽ tự phát hiện lệch và lùi về
+      // localStorage an toàn, không có nguy cơ đọc nhầm dữ liệu hỏng).
+      if(_b30IdbKvTruoc){
+        try{
+          for(const _sd of TS128_SO_DO){
+            const _v = _b30IdbKvTruoc[_sd.lsKey];
+            if(_v === undefined) await _idbXoa("kv", _sd.lsKey); else await _idbSet("kv", _sd.lsKey, _v);
+          }
+          if(_b30IdbMetaTruoc === undefined) await _idbXoa("meta", TS128_MOC_DONG_BO_META_KHOA); else await _idbSet("meta", TS128_MOC_DONG_BO_META_KHOA, _b30IdbMetaTruoc);
+        }catch(_){}
+      }
       // TS128 BƯỚC 31.3: nếu đã ghi trước Blob vào IDB -> đồng bộ lại kho "vanban"
       // theo state CŨ (vừa hoàn tác) để KHÔNG để Blob mồ côi của tài liệu chưa commit.
       if(_b313DungMetaOnly){ try{ await _ts128VanBanGhiChac(Array.isArray(state.vanBanKho) ? state.vanBanKho : []); }catch(_){} }
@@ -7960,7 +8287,33 @@ function _mbGon(bytes){ return (bytes/1048576).toFixed(1).replace(".", ","); }
 // sang GB, 2 chữ số thập phân, dấu phẩy. Giá trị < 0,01 GB vẫn hiện "0,00".
 function _gbGon(bytes){ return (Number(bytes)/(1024*1024*1024)).toFixed(2).replace(".", ","); }
 // Chip màu cố định ở cuối menu trái — hiện cho CẢ Quản trị và Chi hội.
+// TS-IDBPRIMARY (2026-09-23): dòng phụ tham khảo — dung lượng THẬT của
+// localStorage (nơi 6 lát nhỏ + bản rút gọn/đầy đủ của members-trash vẫn
+// luôn nằm) — hữu ích để thấy rõ hiệu quả của bản rút gọn, và làm phao cứu
+// sinh chẩn đoán nếu storage.estimate() (số liệu CHÍNH ở trên) không khả
+// dụng/không cập nhật kịp trên 1 thiết bị cụ thể nào đó.
+// TS-IDBPRIMARY (đợt 3): liệt kê ĐỘNG đúng những lát ĐANG THỰC SỰ ở chế độ
+// rút gọn tại thời điểm gọi — không hardcode tên, để người dùng luôn biết
+// chính xác tình trạng dữ liệu (vd chỉ "hội viên/thùng rác" nếu log/thuChi
+// chưa đủ lớn để cần rút gọn, tự thêm "nhật ký"/"Thu-Chi" vào câu khi 1
+// trong 2 lát đó sau này thật sự vượt ngưỡng và được rút gọn).
+function _ts128DongPhuLocalStorageThat(){
+  try{
+    const bytes = _dungLuongDaDung();
+    const dsRutGon = [];
+    if(_ts128DaRutGonLS) dsRutGon.push("hội viên/thùng rác");
+    if(_ts128DaRutGonLog) dsRutGon.push("nhật ký");
+    if(_ts128DaRutGonThuChi) dsRutGon.push("Thu-Chi");
+    const hauTo = dsRutGon.length ? ` (đã rút gọn ${dsRutGon.join(", ")})` : "";
+    return ` · localStorage thật: ${_mbGon(bytes)} MB${hauTo}`;
+  }catch(e){ return ""; }
+}
 function chipBoNho(){
+  // TS-IDBPRIMARY: sau khi chuyển IndexedDB thành nơi chứa dữ liệu CHÍNH,
+  // navigator.storage.estimate() (qua _ts128MocTongHopBoNho, TS128 BƯỚC 11)
+  // ĐÚNG là số liệu cần ưu tiên trở lại — vì nó phản ánh đúng nơi dữ liệu lớn
+  // (members/trash) thực sự nằm. _tinhTrangBoNho() (localStorage thật) chỉ
+  // còn là dòng phụ tham khảo (xem _ts128DongPhuLocalStorageThat()).
   const t=_ts128TinhTrangBoNhoHienThi(); // TS128 BƯỚC 11: ưu tiên mốc tổng hợp (localStorage+IndexedDB), tự lùi về _tinhTrangBoNho() nếu chưa có/không hỗ trợ
   const cfg={
     xanh:{i:"🟢", nhan:"còn dung lượng", c:"rgba(247,242,228,.7)"},
@@ -7971,7 +8324,8 @@ function chipBoNho(){
   const ttMay = _laMayDienThoai()
     ? "Điện thoại/máy tính bảng: mốc cảnh báo được giới hạn ở mức an toàn vì bộ nhớ có thể bị trình duyệt thu hồi."
     : "";
-  return `<div class="savebar" style="color:${cfg.c};" title="Ước lượng bộ nhớ trình duyệt dành cho sổ này (${t.nguon==="do"?"đo trên máy này":"ước tính theo loại máy"}). ${ttMay} Dữ liệu chuyển giữa các máy bằng Sao lưu.">${cfg.i} ${t.muc==="xanh" ? "Bộ nhớ: " : `Bộ nhớ: ${cfg.nhan} — `}Đã sử dụng: ${_gbGon(t.dung)} GB / ${_gbGon(t.moc)} GB (${nhanNguon})</div>`;
+  const dongPhu = _ts128DongPhuLocalStorageThat();
+  return `<div class="savebar" style="color:${cfg.c};" title="Ước lượng bộ nhớ trình duyệt dành cho sổ này (${t.nguon==="do"?"đo trên máy này":"ước tính theo loại máy"}). ${ttMay} Dữ liệu chuyển giữa các máy bằng Sao lưu.">${cfg.i} ${t.muc==="xanh" ? "Bộ nhớ: " : `Bộ nhớ: ${cfg.nhan} — `}Đã sử dụng: ${_gbGon(t.dung)} GB / ${_gbGon(t.moc)} GB (${nhanNguon})${dongPhu}</div>`;
 }
 // Banner nhắc ở đầu trang Trực quan / Tổng quan — chỉ khi 🟡 hoặc 🔴.
 function bannerBoNho(){
@@ -7994,6 +8348,42 @@ function bannerBoNho(){
 }
 function anBannerBoNho(){ state.bannerBoNhoAn=true; renderContent(); }
 function doLaiBoNho(){ try{ localStorage.removeItem(LS_BONHO_MOC); }catch(e){} capNhatMocBoNho(true); render(); }
+
+// ==== TS-IDBPRIMARY (2026-09-23) — MODAL CHẶN NHẸ KHI IndexedDB LỖI LIÊN TIẾP ====
+// Kích hoạt bởi chay() (trong _ts128GhiMocVaShadowAnToan()) khi ghi IndexedDB
+// kho "kv" lỗi TS128_NGUONG_IDB_LOI_CANH_BAO lần LIÊN TIẾP — dấu hiệu IndexedDB
+// đang hỏng THẬT (không phải trục trặc thoáng qua 1 lần). "Chặn nhẹ": có nút
+// đóng (không khoá cứng thao tác khác), nhưng KHÔNG tự ẩn qua Dashboard như
+// banner thường — phải chủ động bấm "Đã hiểu" mới đóng, để không bị lướt qua.
+function renderCanhBaoIdbLoiModal(){
+  let modalEl=document.getElementById("modal-root-canhbaoidb");
+  if(!modalEl){ modalEl=document.createElement("div"); modalEl.id="modal-root-canhbaoidb"; document.body.appendChild(modalEl); }
+  modalEl.innerHTML=`
+    <div class="overlay" style="z-index:9999;">
+      <div class="modal" style="max-width:480px;" onclick="event.stopPropagation()">
+        <div class="modal-head">
+          <h2>⚠️ Bộ nhớ mở rộng đang gặp sự cố</h2>
+        </div>
+        <div style="padding:4px 2px 14px;line-height:1.6;">
+          Bộ nhớ mở rộng (IndexedDB) trên máy này đang ghi lỗi liên tục
+          (${_ts128SoLanIdbLoiLienTiep} lần liên tiếp). Dữ liệu hội viên/thùng
+          rác tạm thời chỉ còn được đảm bảo ở bản rút gọn trong bộ nhớ chính —
+          <b>hãy Sao lưu ra file NGAY</b> để đảm bảo an toàn, đề phòng sự cố
+          kéo dài.
+        </div>
+        <div class="modal-actions" style="display:flex;gap:8px;justify-content:flex-end;">
+          <button type="button" class="btn" onclick="dongCanhBaoIdbLoiModal()">Đã hiểu, đóng</button>
+          <button type="button" class="btn primary" onclick="exportJSON()">Sao lưu ngay</button>
+        </div>
+      </div>
+    </div>`;
+}
+function _ts128AnCanhBaoIdbLoiModal(){
+  const m=document.getElementById("modal-root-canhbaoidb");
+  if(m) m.innerHTML="";
+}
+function dongCanhBaoIdbLoiModal(){ state.canhBaoIdbLoiModal=false; render(); }
+// ==== HẾT MODAL CHẶN NHẸ ====
 
 // ---------- Nhật ký thao tác ----------
 function nguoiThucHien(){
@@ -8712,6 +9102,7 @@ function render(){
   renderIosBanner();
   renderSwUpdateBanner();
   if(state.importWizard) renderImportWizard();
+  if(state.canhBaoIdbLoiModal) renderCanhBaoIdbLoiModal(); else _ts128AnCanhBaoIdbLoiModal();
 }
 
 function renderTrucQuan(){
@@ -8785,10 +9176,19 @@ function canXemNhatKy(entry){
 function renderBackupBanner(){
   const last=Number(localStorage.getItem(LS_LASTBACKUP)||0);
   const soNgay=last? Math.floor((Date.now()-last)/86400000) : null;
-  if(soNgay!==null && soNgay<7) return "";
+  // TS-IDBPRIMARY (mục 6): thêm ngưỡng theo SỐ LẦN persist() kể từ lần sao
+  // lưu gần nhất — 1 chi hội nhập liền hàng nghìn hội viên trong 1 buổi
+  // không nên phải chờ đủ 7 ngày mới được nhắc. Nhắc khi ĐẠT BẤT KỲ 1 trong 2
+  // ngưỡng (ngày HOẶC số lần persist).
+  let soLanPersist = 0;
+  try{ soLanPersist = Number(localStorage.getItem(LS_PERSIST_KE_TU_BACKUP) || 0); }catch(e){}
+  const dungNguongSoLan = soLanPersist >= TS128_NGUONG_SO_LAN_PERSIST_NHAC_BACKUP;
+  if(soNgay!==null && soNgay<7 && !dungNguongSoLan) return "";
   const msg = soNgay===null
     ? "CHƯA từng sao lưu dữ liệu ra file. Nếu máy hỏng hoặc mất trình duyệt, toàn bộ dữ liệu có thể mất."
-    : `Đã ${soNgay} ngày chưa sao lưu dữ liệu. Nên xuất file dự phòng định kỳ.`;
+    : (dungNguongSoLan && soNgay<7)
+      ? `Đã thao tác (lưu) ${soLanPersist} lần kể từ lần sao lưu gần nhất — nên xuất file dự phòng sớm dù chưa tới 7 ngày.`
+      : `Đã ${soNgay} ngày chưa sao lưu dữ liệu. Nên xuất file dự phòng định kỳ.`;
   return `
     <div class="banner">
       <span>⚠️ ${msg}</span>
@@ -9605,9 +10005,7 @@ function renderModalVanBan(){
     </div>`;
 }
 
-// (TEST 2026-09-19) Bản render CŨ giữ nguyên, không xóa (quy ước dự án) — đã
-// thay bằng renderBieuMau() mới ở khối "VĂN BẢN DÙNG CHUNG" ngay bên dưới.
-function renderBieuMauCu(){
+function renderBieuMau(){
   const laChiHoiHanChe = state.loggedInChiHoi && !state.isAdmin;
   return `
     ${renderModalVanBan()}
@@ -9631,7 +10029,7 @@ function renderBieuMauCu(){
 
 // Chỉ phần danh sách kết quả — tách riêng để khi gõ ô tìm kiếm chỉ vẽ lại
 // phần này, không dựng lại ô nhập (xem giải thích ở renderListKetQua).
-function renderBieuMauKetQuaCu(){
+function renderBieuMauKetQua(){
   const dsLoc=filteredVanBan();
   const laChiHoiHanChe = state.loggedInChiHoi && !state.isAdmin;
   return `
@@ -9663,300 +10061,6 @@ function renderBieuMauKetQuaCu(){
       `}
   `;
 }
-
-// =====================================================================
-// VĂN BẢN DÙNG CHUNG (GitHub) — BẢN THỬ NGHIỆM (2026-09-19, CHƯA PHÁT HÀNH)
-// =====================================================================
-// Khi mở màn "Biểu mẫu – Văn bản" VÀ có mạng, app đọc 1 file manifest.json tự
-// duy trì trên GitHub (raw.githubusercontent.com — không giới hạn 60 lượt/giờ
-// như GitHub Contents API) để lấy danh sách văn bản do Quản trị đăng tập
-// trung. NGUYÊN TẮC AN TOÀN (đây là lần đầu app gọi ra internet lấy dữ liệu):
-//  1. MỌI lỗi (mất mạng, GitHub lỗi, URL sai, JSON hỏng, quá 8 giây...) đều
-//     bị bắt và IM LẶNG bỏ qua — không alert, không ném lỗi ra ngoài, không
-//     chặn/khóa phần nào khác của app. Phần "Trên máy này" luôn hiển thị như cũ.
-//  2. Danh sách dùng chung nằm NGOÀI "state" (biến _vbdc bên dưới) nên KHÔNG
-//     bao giờ lọt vào persist / Sao lưu / Xuất / Nhập lại / di trú IndexedDB
-//     chính — chỉ là bộ nhớ đệm hiển thị.
-//  3. Cache lưu ở CSDL IndexedDB RIÊNG ("sohoivien_vbdc"), tách hẳn CSDL chính
-//     "sohoivien_idb" — không đổi schema/phiên bản CSDL chính, không đụng
-//     migration/kiểm tra đối chiếu hiện có.
-// ĐỊNH DẠNG manifest.json (do Quản trị tự soạn trên GitHub):
-//   { "vanBan": [ { "ten":"Mẫu báo cáo Quý III/2026", "file":"mau-bao-cao-q3.pdf",
-//                   "ngay":"2026-09-18", "moi":true } , ... ] }
-//   - "file": tên file nằm CÙNG THƯ MỤC với manifest.json (hoặc URL https đầy đủ)
-//   - "ngay": YYYY-MM-DD; "moi": true để hiện nhãn "Mới" (tùy chọn)
-// >>> KHI TẠO XONG THƯ MỤC/FILE THẬT TRÊN GITHUB: CHỈ CẦN SỬA URL DƯỚI ĐÂY <<<
-const VBDC_MANIFEST_URL = "https://raw.githubusercontent.com/hoinongdantuson-del/hndTuSon/main/van-ban-dung-chung/manifest.json";
-const VBDC_IDB_TEN = "sohoivien_vbdc";
-const VBDC_HET_GIO_MS = 8000;        // quá 8 giây không có phản hồi -> hủy, im lặng
-const VBDC_CACH_LAN_TAI_MS = 60000;  // không tải lại dày hơn 1 lần/phút (kể cả khi lỗi)
-let _vbdc = { ds: [], luc: null };   // {ds:[{id,ten,url,ngayMs,laPdf,moi}], luc: mốc thời gian lần cập nhật}
-let _vbdcDangTai = false;
-let _vbdcLanTaiCuoi = 0;
-let _vbdcDaNapCache = false;
-let _vbLoc = "tatca";                // bộ lọc nhanh: "tatca" | "chung" | "may"
-
-// Chuẩn hóa + kiểm tra nghiêm ngặt dữ liệu manifest; mục nào sai bị bỏ qua.
-// Trả về mảng (có thể rỗng) hoặc null nếu KHÔNG đúng cấu trúc manifest.
-function _vbdcChuanHoa(json, urlManifest){
-  if(!json || typeof json !== "object" || !Array.isArray(json.vanBan)) return null;
-  const ds = [];
-  json.vanBan.forEach(function(x, i){
-    try{
-      if(!x || typeof x !== "object") return;
-      const ten = String(x.ten || "").trim();
-      const fileRaw = String(x.file || "").trim();
-      if(!ten || !fileRaw) return;
-      const u = new URL(fileRaw, urlManifest);
-      if(u.protocol !== "https:") return;   // chỉ chấp nhận https
-      let ngayMs = 0;
-      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(x.ngay || "").trim());
-      if(m){ const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])); if(!isNaN(d.getTime())) ngayMs = d.getTime(); }
-      const duoi = (fileRaw.split("?")[0].split("#")[0].split(".").pop() || "").toLowerCase();
-      const laPdf = duoi === "pdf" || String(x.loai || "").toLowerCase() === "pdf";
-      ds.push({ id: "dc_" + i, ten: ten, url: u.href, ngayMs: ngayMs, laPdf: laPdf, moi: x.moi === true });
-    }catch(e){}
-  });
-  return ds;
-}
-
-// ---- Cache IndexedDB RIÊNG (mọi hàm dưới đây KHÔNG BAO GIỜ ném lỗi ra ngoài) ----
-function _vbdcMoIdb(){
-  return new Promise(function(ok){
-    try{
-      if(typeof indexedDB === "undefined" || !indexedDB){ ok(null); return; }
-      let xong = false;
-      const ket = function(v){ if(!xong){ xong = true; ok(v); } };
-      const tm = setTimeout(function(){ ket(null); }, 4000);
-      const yc = indexedDB.open(VBDC_IDB_TEN, 1);
-      yc.onupgradeneeded = function(ev){
-        try{ const db = ev.target.result; if(!db.objectStoreNames.contains("cache")) db.createObjectStore("cache"); }catch(e){}
-      };
-      yc.onsuccess = function(ev){
-        clearTimeout(tm);
-        if(xong){ try{ ev.target.result.close(); }catch(e){} return; }
-        ket(ev.target.result);
-      };
-      yc.onerror = function(){ clearTimeout(tm); ket(null); };
-    }catch(e){ ok(null); }
-  });
-}
-async function _vbdcDocCache(){
-  const db = await _vbdcMoIdb();
-  if(!db) return null;
-  try{
-    return await new Promise(function(ok){
-      try{
-        const tx = db.transaction("cache", "readonly");
-        const rq = tx.objectStore("cache").get("manifest");
-        rq.onsuccess = function(){ ok(rq.result || null); };
-        rq.onerror = function(){ ok(null); };
-        tx.onabort = function(){ ok(null); };
-      }catch(e){ ok(null); }
-    });
-  }catch(e){ return null; }
-  finally{ try{ db.close(); }catch(e){} }
-}
-async function _vbdcGhiCache(obj){
-  const db = await _vbdcMoIdb();
-  if(!db) return false;
-  try{
-    return await new Promise(function(ok){
-      try{
-        const tx = db.transaction("cache", "readwrite");
-        tx.objectStore("cache").put(obj, "manifest");
-        tx.oncomplete = function(){ ok(true); };
-        tx.onerror = function(){ ok(false); };
-        tx.onabort = function(){ ok(false); };
-      }catch(e){ ok(false); }
-    });
-  }catch(e){ return false; }
-  finally{ try{ db.close(); }catch(e){} }
-}
-
-// Vẽ lại RIÊNG 3 khung của màn Văn bản (không dựng lại ô tìm kiếm đang gõ, không
-// đụng modal/màn khác). Chỉ chạy nếu người dùng đang ở đúng màn này.
-function _vbdcVeLai(){
-  try{
-    if(state.view !== "bieumau") return;
-    _vbLocHopLe();
-    const a = document.getElementById("bieuMauLoc");   if(a) a.innerHTML = renderBieuMauLoc();
-    const b = document.getElementById("bieuMauKetQua"); if(b) b.innerHTML = renderBieuMauKetQua();
-    const c = document.getElementById("bieuMauChan");   if(c) c.innerHTML = renderBieuMauChan();
-  }catch(e){}
-}
-
-// Tải manifest từ GitHub. TOÀN BỘ bọc try/catch; thất bại = im lặng giữ nguyên
-// danh sách đã có (cache cũ hoặc rỗng). Không alert, không console.error.
-async function _vbdcTai(){
-  if(_vbdcDangTai) return;
-  if(typeof navigator !== "undefined" && navigator.onLine === false) return;   // không có mạng: khỏi gọi
-  if(_vbdcLanTaiCuoi && (Date.now() - _vbdcLanTaiCuoi) < VBDC_CACH_LAN_TAI_MS) return;
-  _vbdcDangTai = true;
-  _vbdcLanTaiCuoi = Date.now();
-  let huy = null;
-  try{
-    const ac = (typeof AbortController !== "undefined") ? new AbortController() : null;
-    if(ac) huy = setTimeout(function(){ try{ ac.abort(); }catch(e){} }, VBDC_HET_GIO_MS);
-    const res = await fetch(VBDC_MANIFEST_URL, { cache: "no-cache", signal: ac ? ac.signal : undefined });
-    if(!res || !res.ok) throw new Error("http");
-    // Service Worker offline có thể trả nhầm trang index.html (không phải JSON):
-    // JSON.parse sẽ ném lỗi và bị bắt ngay dưới đây — coi như thất bại, im lặng.
-    const json = JSON.parse(await res.text());
-    const ds = _vbdcChuanHoa(json, VBDC_MANIFEST_URL);
-    if(!ds) throw new Error("cau-truc");
-    _vbdc = { ds: ds, luc: Date.now() };
-    _vbdcGhiCache({ ds: ds, luc: _vbdc.luc }).catch(function(){});
-    _vbdcVeLai();
-  }catch(e){
-    // IM LẶNG: giữ nguyên _vbdc hiện có (cache cũ nếu có, hoặc rỗng -> mục "Dùng chung" ẩn).
-  }finally{
-    if(huy) clearTimeout(huy);
-    _vbdcDangTai = false;
-  }
-}
-
-// Điểm vào duy nhất, gọi (không chờ) mỗi khi vẽ màn Văn bản: nạp cache trước (hiện
-// ngay danh sách đã biết, kể cả offline) rồi mới thử tải mới.
-async function _vbdcKhoiDong(){
-  try{
-    if(!_vbdcDaNapCache){
-      _vbdcDaNapCache = true;
-      const c = await _vbdcDocCache();
-      if(c && Array.isArray(c.ds) && !(_vbdc.ds && _vbdc.ds.length)){
-        const ds = c.ds.filter(function(v){ return v && typeof v.ten === "string" && typeof v.url === "string" && v.url.indexOf("https://") === 0; });
-        if(ds.length){ _vbdc = { ds: ds, luc: Number(c.luc) || null }; _vbdcVeLai(); }
-      }
-    }
-    await _vbdcTai();
-  }catch(e){}
-}
-
-function _vbLocHopLe(){
-  const coChung = _vbdc.ds.length > 0;
-  if(!coChung) _vbLoc = "tatca";                  // chưa có dùng chung -> không có bộ lọc để chọn
-  else if(["tatca","chung","may"].indexOf(_vbLoc) < 0) _vbLoc = "tatca";
-}
-function setVbLoc(k){
-  _vbLoc = k;
-  _vbdcVeLai();
-}
-
-// Danh sách GỘP 1 khối: "Dùng chung" (mới nhất trước) rồi tới "Trên máy này" (mới
-// nhất trước) — 1 ô tìm kiếm áp dụng cho cả hai nguồn.
-function _vbDanhSachGop(){
-  const tu = boDauTiengViet(String(state.vanBanSearch || "").trim());
-  const chung = _vbdc.ds.map(function(v){ return { nguon:"chung", id:v.id, ten:v.ten, ngayMs:v.ngayMs, laPdf:v.laPdf, moi:v.moi }; })
-    .sort(function(a,b){ return b.ngayMs - a.ngayMs; });
-  const may = state.vanBanKho.map(function(v){ return { nguon:"may", id:v.id, ten:v.tenMau, ngayMs:v.ngayTai, kichThuoc:v.kichThuoc, laPdf:(v.loaiFile||"").includes("pdf") }; })
-    .sort(function(a,b){ return b.ngayMs - a.ngayMs; });
-  let ds = _vbLoc === "chung" ? chung : (_vbLoc === "may" ? may : chung.concat(may));
-  if(tu) ds = ds.filter(function(v){ return boDauTiengViet(v.ten || "").includes(tu); });
-  return ds;
-}
-
-function _vbdcNgayGio(ms){
-  const d = new Date(ms), nay = new Date();
-  const hh = String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
-  return (d.toDateString() === nay.toDateString() ? "hôm nay" : d.toLocaleDateString("vi-VN")) + " " + hh;
-}
-
-// Mở file THẬT trên GitHub (raw.githubusercontent.com) ở tab mới. Không có nút Xóa.
-function _vbdcMoUrl(id){
-  if(!_yeuCauDangNhap()) return;
-  const v = _vbdc.ds.find(function(x){ return x.id === id; });
-  if(!v) return;
-  if(typeof navigator !== "undefined" && navigator.onLine === false){
-    alert("Đang không có mạng nên chưa mở được văn bản dùng chung này.\nHãy thử lại khi có kết nối.");
-    return;
-  }
-  if(!moTabMoi(v.url)) alert("Không mở được văn bản này. Hãy thử lại.");
-}
-function xemVanBanDungChung(id){ _vbdcMoUrl(id); }
-function taiVanBanDungChung(id){ _vbdcMoUrl(id); }
-
-// ---- Giao diện (theo mockup-khovanban-v2.html) ----
-function renderBieuMauLoc(){
-  const nChung = _vbdc.ds.length, nMay = state.vanBanKho.length;
-  if(nChung === 0) return "";   // chưa từng tải được dùng chung -> ẩn bộ lọc, màn hình như cũ
-  const nut = function(k, nhan){ return `<button type="button" class="${_vbLoc===k?'dang-chon':''}" onclick="setVbLoc('${k}')">${nhan}</button>`; };
-  return `<div class="vb-tab-loc">${nut("tatca","Tất cả ("+(nChung+nMay)+")")}${nut("chung","🌐 Dùng chung ("+nChung+")")}${nut("may","📱 Trên máy này ("+nMay+")")}</div>`;
-}
-
-function renderBieuMauChan(){
-  if(_vbdc.ds.length === 0) return "";   // không có dữ liệu dùng chung -> không hiện dòng thông báo nào
-  return `<div class="vb-chan">📶 Văn bản "Dùng chung" cập nhật tự động khi có mạng — lần xem gần nhất: ${_vbdc.luc ? _vbdcNgayGio(_vbdc.luc) : "chưa rõ"}</div>`;
-}
-
-function renderBieuMauKetQua(){
-  const dsLoc = _vbDanhSachGop();
-  const laChiHoiHanChe = state.loggedInChiHoi && !state.isAdmin;
-  if(dsLoc.length === 0){
-    const tongTrong = state.vanBanKho.length === 0 && _vbdc.ds.length === 0;
-    const coTim = String(state.vanBanSearch || "").trim() !== "";
-    return `
-        <div class="empty" style="padding:40px 0;text-align:center;">
-          <div style="font-size:40px;">📂</div>
-          <p style="font-weight:600;margin:8px 0 2px;">${tongTrong ? 'Chưa có biểu mẫu, văn bản nào.' : (coTim ? 'Không tìm thấy văn bản khớp với tìm kiếm.' : 'Chưa có văn bản nào trong mục này.')}</p>
-          ${tongTrong && !laChiHoiHanChe ? `<p style="color:var(--rice-light);font-size:13px;">Bấm "+ Thêm" để tạo kho tài liệu đầu tiên.</p>` : ''}
-        </div>`;
-  }
-  return `<div class="vb-ds">${dsLoc.map(function(v){
-    const ngay = v.ngayMs ? new Date(v.ngayMs).toLocaleDateString("vi-VN") : "";
-    if(v.nguon === "chung"){
-      return `
-        <div class="vb-dong">
-          <div class="vb-icon chung">🌐</div>
-          <div class="vb-thongtin">
-            <div class="vb-ten">${esc(v.ten)}</div>
-            <div class="vb-meta">${v.moi ? '<span class="vb-nhan moi">Mới</span>' : ''}<span class="vb-nhan chung">Dùng chung</span>${ngay ? '<span>· '+ngay+'</span>' : ''}</div>
-          </div>
-          <div class="vb-nut">
-            ${v.laPdf ? `<button type="button" class="vb-btn-icon" title="Xem" aria-label="Xem" onclick="xemVanBanDungChung('${v.id}')">👁</button>` : ''}
-            <button type="button" class="vb-btn-icon" title="Tải" aria-label="Tải" onclick="taiVanBanDungChung('${v.id}')">⬇</button>
-          </div>
-        </div>`;
-    }
-    return `
-        <div class="vb-dong">
-          <div class="vb-icon rieng">📄</div>
-          <div class="vb-thongtin">
-            <div class="vb-ten">${esc(v.ten)}</div>
-            <div class="vb-meta"><span>${dinhDangDungLuong(v.kichThuoc)} · ${ngay}</span></div>
-          </div>
-          <div class="vb-nut">
-            ${v.laPdf ? `<button type="button" class="vb-btn-icon" title="Xem" aria-label="Xem" onclick="xemVanBan('${v.id}')">👁</button>` : ''}
-            <button type="button" class="vb-btn-icon" title="Tải" aria-label="Tải" onclick="taiVanBanXuong('${v.id}')">⬇</button>
-            ${!laChiHoiHanChe ? `<button type="button" class="vb-btn-icon" title="Xóa" aria-label="Xóa" onclick="xoaVanBan('${v.id}')">🗑</button>` : ''}
-          </div>
-        </div>`;
-  }).join("")}</div>`;
-}
-
-function renderBieuMau(){
-  const laChiHoiHanChe = state.loggedInChiHoi && !state.isAdmin;
-  setTimeout(_vbdcKhoiDong, 0);   // không chờ, không chặn việc vẽ màn hình; mọi lỗi đã bị bắt bên trong
-  _vbLocHopLe();
-  return `
-    ${renderModalVanBan()}
-    <div class="panel">
-      <div>
-        <h3 style="margin:0;">📁 Kho Biểu mẫu – Văn bản</h3>
-        <p style="margin:2px 0 0;font-size:12.5px;color:var(--rice-light);">Tài liệu dùng chung phục vụ nghiệp vụ các chi hội.</p>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:14px;">
-        <input type="text" id="vanBanSearchInput" style="flex:1;min-width:0;" placeholder="🔍 Tìm theo tên văn bản..." value="${esc(state.vanBanSearch)}" oninput="setVanBanSearch(this.value)">
-        ${!laChiHoiHanChe ? `<button class="btn primary" style="flex-shrink:0;white-space:nowrap;" onclick="moModalThemVanBan()">+ Thêm</button>` : ''}
-      </div>
-      <div id="bieuMauLoc">${renderBieuMauLoc()}</div>
-      <div id="bieuMauKetQua">${renderBieuMauKetQua()}</div>
-      <div id="bieuMauChan">${renderBieuMauChan()}</div>
-    </div>
-  `;
-}
-// =====================================================================
-// HẾT KHỐI VĂN BẢN DÙNG CHUNG
-// =====================================================================
 
 // ---------- Thu - Chi tài chính (lưu riêng trên từng máy như hội viên,
 // nhưng CÓ đi kèm "Sao lưu đầy đủ" / "Nhập lại dữ liệu" từ khi đã sửa lỗi —
@@ -12802,10 +12906,22 @@ function confirmImportWizard(){
   // _b30DangXuLyNhap===false ở đầu hàm và không có await nào ở giữa nên chắc
   // chắn còn false tới đây — dùng lại _b30ThuKhoaNhap() cho nhất quán, không
   // thể thất bại ở điểm này.
+  // AUDIT 2026-09-23 (lỗi hết bộ nhớ khi nhập Excel ~17.893 hội viên): trước
+  // đây gọi mergeImportedRows() KHÔNG có try/finally — nếu persist() bên
+  // trong ném lỗi, _b30MoKhoaNhap() KHÔNG BAO GIỜ chạy tới, khoá kẹt vĩnh
+  // viễn. Nay bọc try/finally để khoá LUÔN được nhả, đồng bộ với 2 luồng
+  // "Nhập lại..." (JSON/CSV, ZIP) đã làm đúng.
   if(!_b30ThuKhoaNhap()) return;
   closeImportWizard();
-  mergeImportedRows(rows, laChiHoiKhoa ? null : chiHoiDich);
-  _b30MoKhoaNhap();
+  try{
+    mergeImportedRows(rows, laChiHoiKhoa ? null : chiHoiDich);
+  } catch(err){
+    if(!err || !err.jaDaBaoLoi){
+      alert("Có lỗi khi nhập dữ liệu: " + (err && err.message ? err.message : err));
+    }
+  } finally {
+    _b30MoKhoaNhap();
+  }
 }
 
 function normalizeDateStr(v){
@@ -12938,6 +13054,7 @@ async function exportJSON(){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
   localStorage.setItem(LS_LASTBACKUP, String(Date.now()));
+  try{ localStorage.setItem(LS_PERSIST_KE_TU_BACKUP, "0"); }catch(e){} // TS-IDBPRIMARY: vừa sao lưu xong -> reset đếm cho banner nhắc tăng cường
   if(dangXuatVoiTuCachChiHoi){
     alert("Đã sao lưu: Danh sách hội viên + Thu - Chi tài chính.\n\nFile này KHÔNG kèm \"Biểu mẫu – Văn bản\" (để nhẹ bộ nhớ). Khi cần tài liệu, xin file \"Sao lưu đầy đủ\" từ Quản trị rồi Nhập lại dữ liệu.");
   } else if(soThieuNoiDung>0){

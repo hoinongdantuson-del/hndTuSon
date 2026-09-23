@@ -5,7 +5,7 @@
 // chính (trang chính, biểu tượng...) vào bộ nhớ đệm ngay trên máy. Từ lần
 // sau, nếu không có mạng, trình duyệt lấy thẳng từ bộ nhớ đệm đó ra dùng.
 
-const TEN_CACHE = "so-hoi-vien-v162";
+const TEN_CACHE = "so-hoi-vien-v165"; // BẢN TEST idb-primary — mở rộng rút gọn sang "nhật ký"/"Thu-Chi" (2026-09-23, đợt 3). Khác v161 (chính thức)/v162 (TEST văn bản dùng chung)/v163,v164 (idb-primary bản cũ, chỉ rút gọn hội viên/thùng rác — KHÔNG dùng nữa)
 const CAC_FILE_CAN_LUU = [
   "./",
   "./index.html",
