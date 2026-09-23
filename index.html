@@ -103,16 +103,24 @@
     align-items:center;justify-content:center;gap:1px;padding:3px 4px;line-height:1.15;
     white-space:normal;text-align:center;}
   .cong-cu-chihoi-icon{font-size:12px;line-height:1;}
-  /* AUDIT 2026-09-23: thêm "theo CCCD" vào dòng 2 của 2 nút "Rà soát Giới
-     tính/Năm sinh" (chỉ hàng nút Chi hội) làm chữ dài hơn — đo thực tế ở màn
-     hình 320px: "Năm sinh theo CCCD" ở 12px (cỡ chữ gốc) tràn quá khổ nút,
-     vỡ xuống dòng 3. Lần đo đầu dùng 8,5px chỉ dư 0,6px (đo lại đúng font-
-     weight:600 thật của nút, không phải chữ thường) — quá sát mép, rủi ro vỡ
-     dòng trên thiết bị thật do lệch dựng chữ. Chốt 8px (dư ~5,7px so với bề
-     rộng nút khả dụng ở đúng 320px, đã đo bằng phần tử thật + Range API, xem
-     báo cáo) — đủ để cả "Giới tính theo CCCD" lẫn "Năm sinh theo CCCD" (câu
-     dài hơn) vừa đúng 1 dòng. Dòng 1 "Rà soát" GIỮ NGUYÊN 12px. */
-  .cong-cu-chihoi-dong2{font-size:8px;}
+  /* AUDIT 2026-09-23 (đợt 1): thêm "theo CCCD" vào dòng 2 của 2 nút "Rà soát
+     Giới tính/Năm sinh" (chỉ hàng nút Chi hội) làm chữ dài hơn — đo thực tế ở
+     màn hình 320px: 12px (cỡ gốc) tràn quá khổ nút, vỡ xuống dòng 3. Ban đầu
+     CHỈ giảm cỡ dòng 2 xuống 8px, giữ dòng 1 "Rà soát" ở 12px — nhưng nhìn
+     lệch cỡ chữ quá lớn giữa 2 dòng, mất cân đối so với nút "Kiểm tra trùng
+     lặp" bên cạnh (2 dòng đồng nhất 12px).
+     AUDIT 2026-09-23 (đợt 2 — đồng nhất theo yêu cầu): đo lại bằng phần tử
+     thật + Range API — 8px vẫn là cỡ LỚN NHẤT mà "Giới tính theo CCCD"/"Năm
+     sinh theo CCCD" (dòng dài nhất) còn vừa 1 dòng ở 320px (9px đã tràn:
+     86,17-91,13px > 86,67px khả dụng). KHÔNG thể đạt 12px như "Kiểm tra
+     trùng lặp" mà không tràn dòng — nên áp dụng ĐỒNG NHẤT 8px cho CẢ 2 dòng
+     của riêng 2 nút này, phân biệt dòng 1/dòng 2 bằng ĐỘ ĐẬM (font-weight)
+     thay vì cỡ chữ: dòng 1 "Rà soát" đậm hơn (700) làm tiêu đề, dòng 2 chi
+     tiết nhẹ hơn (500) — không đổi gì ở nút "Kiểm tra trùng lặp" (vẫn 12px
+     đồng nhất, không có class nào ở đây áp dụng lên nó). */
+  .cong-cu-chihoi-nhan-dai{font-size:8px;}
+  .cong-cu-chihoi-dong1{font-weight:700;}
+  .cong-cu-chihoi-dong2{font-weight:500;}
   input,select{font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;border-radius:6px;
     border:1px solid var(--line);background:var(--card);color:var(--ink);outline:none;}
   input:focus,select:focus{border-color:var(--rice);box-shadow:0 0 0 3px rgba(53,84,58,.12);}
@@ -9346,8 +9354,8 @@ function renderList(){
       <input type="text" id="listSearchInput" placeholder="Tìm theo tên, SĐT hoặc số CCCD…" value="${esc(state.search)}" oninput="setSearch(this.value)">
       ${(state.loggedInChiHoi && !state.isAdmin) ? `
       <div class="cong-cu-chihoi-hang">
-        <button class="btn small cong-cu-chihoi-nut" onclick="raSoatGioiTinhTheoCCCD()"><span class="cong-cu-chihoi-icon">👤</span><span>Rà soát<br><span class="cong-cu-chihoi-dong2">Giới tính theo CCCD</span></span></button>
-        <button class="btn small cong-cu-chihoi-nut" onclick="raSoatNamSinhTheoCCCD()"><span class="cong-cu-chihoi-icon">🪪</span><span>Rà soát<br><span class="cong-cu-chihoi-dong2">Năm sinh theo CCCD</span></span></button>
+        <button class="btn small cong-cu-chihoi-nut" onclick="raSoatGioiTinhTheoCCCD()"><span class="cong-cu-chihoi-icon">👤</span><span class="cong-cu-chihoi-nhan-dai"><span class="cong-cu-chihoi-dong1">Rà soát</span><br><span class="cong-cu-chihoi-dong2">Giới tính theo CCCD</span></span></button>
+        <button class="btn small cong-cu-chihoi-nut" onclick="raSoatNamSinhTheoCCCD()"><span class="cong-cu-chihoi-icon">🪪</span><span class="cong-cu-chihoi-nhan-dai"><span class="cong-cu-chihoi-dong1">Rà soát</span><br><span class="cong-cu-chihoi-dong2">Năm sinh theo CCCD</span></span></button>
         <button class="btn small cong-cu-chihoi-nut" onclick="kiemTraTrungLap()"><span class="cong-cu-chihoi-icon">🔍</span><span>Kiểm tra<br>trùng lặp</span></button>
       </div>
       ` : `<button class="btn small ${state.sinhNhatThangNayFilter?'primary':''}" onclick="locNhanhSinhNhatThangNay()">🎂 Sinh nhật tháng này</button>`}

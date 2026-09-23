@@ -5,7 +5,7 @@
 // chính (trang chính, biểu tượng...) vào bộ nhớ đệm ngay trên máy. Từ lần
 // sau, nếu không có mạng, trình duyệt lấy thẳng từ bộ nhớ đệm đó ra dùng.
 
-const TEN_CACHE = "so-hoi-vien-v168"; // BẢN TEST idb-primary — thêm "theo CCCD" vào nhãn 2 nút Rà soát (hàng nút Chi hội), giảm cỡ chữ dòng 2 còn 8px để vừa 320px (2026-09-23). Khác v161 (chính thức)/v162 (TEST văn bản dùng chung)/v163-v167 (idb-primary bản cũ hơn — KHÔNG dùng nữa)
+const TEN_CACHE = "so-hoi-vien-v169"; // BẢN TEST idb-primary — đồng nhất cỡ chữ 2 dòng của nút Rà soát (Chi hội) về 8px, phân biệt bằng độ đậm thay vì cỡ chữ (2026-09-23). Khác v161 (chính thức)/v162 (TEST văn bản dùng chung)/v163-v168 (idb-primary bản cũ hơn — KHÔNG dùng nữa)
 const CAC_FILE_CAN_LUU = [
   "./",
   "./index.html",
