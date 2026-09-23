@@ -5,7 +5,7 @@
 // chính (trang chính, biểu tượng...) vào bộ nhớ đệm ngay trên máy. Từ lần
 // sau, nếu không có mạng, trình duyệt lấy thẳng từ bộ nhớ đệm đó ra dùng.
 
-const TEN_CACHE = "so-hoi-vien-v169"; // BẢN TEST idb-primary — đồng nhất cỡ chữ 2 dòng của nút Rà soát (Chi hội) về 8px, phân biệt bằng độ đậm thay vì cỡ chữ (2026-09-23). Khác v161 (chính thức)/v162 (TEST văn bản dùng chung)/v163-v168 (idb-primary bản cũ hơn — KHÔNG dùng nữa)
+const TEN_CACHE = "so-hoi-vien-v174"; // TS141 (23/9/2026) — bản phát hành chính thức, gộp đủ 7 thay đổi TS128 BƯỚC 36 (khóa Excel, thông báo ngữ cảnh, IndexedDB-primary, LLCT, Tải iOS, bố cục 3 nút, Đối khớp/chip)
 const CAC_FILE_CAN_LUU = [
   "./",
   "./index.html",
