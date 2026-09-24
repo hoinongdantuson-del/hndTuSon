@@ -112,14 +112,20 @@
        chữ to hơn hẳn icon trong 1 cột hẹp. Áp dụng ĐỒNG NHẤT cho icon + cả
        2 dòng chữ + cả 3 nút bằng 1 selector chung duy nhất, không cần thêm
        class/span nào trong markup. */
-  /* 2026-09-24: align-items:stretch (trước đây flex-start) — 3 nút LUÔN cao bằng nhau
-     tuyệt đối dù 1 nút bị xuống dòng thêm (vd "Năm sinh" ở bề rộng hẹp/xoay ngang):
-     flex tự kéo cả 3 nút theo nút cao nhất, không phụ thuộc số dòng chữ từng nút. */
-  /* Đo thực tế: với display:flex + flex-basis 0 của từng nút, Chrome tính chiều cao khung theo lượt đo hẹp (chữ 3 dòng) nên khung cao hơn nội dung ~16px và align-items:stretch kéo cả 3 nút cao thừa. Dùng GRID 3 cột bằng nhau: hàng cao đúng bằng nút cao nhất ở bề rộng thật, 3 nút luôn bằng nhau. */
-  .cong-cu-chihoi-hang{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;flex:1;min-width:0;box-sizing:border-box;align-items:stretch;}
+  /* 2026-09-24 (TS142 hotfix iPhone): đợt "3 nút cao đều" trước đó đổi khung sang CSS GRID + align-items:stretch —
+     trên iPhone thật 3 nút hiện thành 3 ô TRỐNG, cao quá mức (không tái hiện được trên WebKit Windows 26.6/Chrome
+     nên chưa xác định chính xác dòng gây lỗi). QUAY LẠI đúng bố cục flex đã chạy tốt trên iPhone ở TS141 (khung
+     flex + nút flex-start, KHÔNG grid, KHÔNG stretch) và đạt "cao đều nhau" bằng 2 lớp không phụ thuộc hành vi
+     đặc thù của trình duyệt: (1) min-height:56px là SÀN chung (chiều cao tự nhiên đo được 54,5–55,2px ở Chrome/
+     WebKit — luôn thấp hơn sàn -> cả 3 nút cùng đúng 56px); (2) hàm _ctCanBangNutChiHoi() (cuối file) đo chiều
+     cao THẬT của 3 nút sau mỗi lần vẽ lại/xoay/đổi cỡ và đặt min-height = nút cao nhất (phòng chữ xuống dòng thêm,
+     cỡ chữ hệ thống lớn). */
+  .cong-cu-chihoi-hang{display:flex;gap:6px;flex:1;min-width:0;box-sizing:border-box;align-items:flex-start;}
   .btn.small.cong-cu-chihoi-nut{flex:1;min-width:0;box-sizing:border-box;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:1px;padding:3px 4px;line-height:1.15;
-    white-space:normal;text-align:center;align-self:stretch;}
+    align-items:center;justify-content:center;gap:1px;padding:3px 4px;line-height:1.15;min-height:56px;
+    white-space:normal;text-align:center;
+    /* .btn có transition:.15s (= all) nên min-height/height cũng bị làm mượt: đo chiều cao trong lúc đang chạy sẽ ra số sai -> chỉ làm mượt màu/viền */
+    transition:border-color .15s,color .15s,background-color .15s;}
   .cong-cu-chihoi-icon{font-size:14px;line-height:1;}
   .cong-cu-chihoi-nut>span:last-child{font-size:14px;}
   input,select{font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;border-radius:6px;
@@ -363,8 +369,8 @@
     div[style*="grid-template-columns:1fr 1fr 1fr"]{grid-template-columns:1fr !important;}
     div[style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr !important;}
     .toolbar-hang1,.toolbar-hang2{flex-direction:column;align-items:stretch;}
-    /* 2026-09-24: khi thanh công cụ xếp DỌC, khung 3 nút Chi hội không được flex:1 (theo chiều dọc sẽ bị kéo cao hơn nội dung ~16px, làm 3 nút stretch cao thừa) — để cao đúng bằng nội dung */
-    .cong-cu-chihoi-hang{flex:0 0 auto;}
+    /* 2026-09-24: thanh công cụ xếp DỌC -> khung 3 nút không flex:1 (Chrome tính cao hơn nội dung ~16px, thừa khoảng trống dưới hàng nút); đo: flex:none + width:100% cho chiều cao tự nhiên 54,5px */
+    .cong-cu-chihoi-hang{flex:none;width:100%;}
     .modal{width:94vw !important;padding:16px;}
     .grid2{grid-template-columns:1fr !important;}
     table{font-size:12px;}
@@ -14702,6 +14708,33 @@ window.addEventListener("orientationchange", epMucPhongVeVuaManHinh);
     } else {
       _xoaPhienChiHoi();
     }
+  }catch(e){}
+})();
+
+// ==== CÂN BẰNG CHIỀU CAO 3 NÚT RÀ SOÁT (CHI HỘI) — 2026-09-24 ====
+// Xem chú thích ở CSS .cong-cu-chihoi-nut. Đo chiều cao thật, đặt min-height = nút cao nhất -> 3 nút luôn bằng nhau
+// tuyệt đối kể cả khi 1 nút bị xuống dòng thêm. Không đổi bố cục/độ hiển thị nếu lỗi (tự bỏ qua êm).
+function _ctCanBangNutChiHoi(){
+  try{
+    const ns=document.querySelectorAll(".cong-cu-chihoi-nut");
+    if(ns.length<2) return;
+    ns.forEach(n=>{ n.style.minHeight=""; });
+    let max=0;
+    ns.forEach(n=>{ const h=n.getBoundingClientRect().height; if(h>max) max=h; });
+    if(max>0) ns.forEach(n=>{ n.style.minHeight=max+"px"; });
+  }catch(e){}
+}
+(function _ctKhoiTaoCanBangNut(){
+  try{
+    let cho=false;
+    const lap=()=>{ if(cho) return; cho=true; requestAnimationFrame(()=>{ cho=false; _ctCanBangNutChiHoi(); }); };
+    window.addEventListener("resize", lap);
+    window.addEventListener("orientationchange", lap);
+    if(document.fonts && document.fonts.ready) document.fonts.ready.then(lap).catch(()=>{});
+    if(typeof MutationObserver!=="undefined" && document.body){
+      new MutationObserver(lap).observe(document.body,{childList:true,subtree:true}); // chỉ childList: đổi style không kích hoạt lại
+    }
+    lap();
   }catch(e){}
 })();
 
