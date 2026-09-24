@@ -5,7 +5,7 @@
 // chính (trang chính, biểu tượng...) vào bộ nhớ đệm ngay trên máy. Từ lần
 // sau, nếu không có mạng, trình duyệt lấy thẳng từ bộ nhớ đệm đó ra dùng.
 
-const TEN_CACHE = "so-hoi-vien-v176"; // TS142-TEST-safari (24/9/2026) — bản THỬ trên iPhone: sửa hiển thị 3 nút Rà soát/Kiểm tra trùng lặp (Chi hội), bỏ CSS Grid; KHÔNG phải bản chính thức
+const TEN_CACHE = "so-hoi-vien-v177"; // TS143 (24/9/2026) — bản phát hành chính thức: sửa hiển thị 3 nút Rà soát/Kiểm tra trùng lặp trên iPhone, chống tách dòng "Năm sinh" trên tablet ngang; gộp toàn bộ TS142
 const CAC_FILE_CAN_LUU = [
   "./",
   "./index.html",
