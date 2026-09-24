@@ -5,7 +5,7 @@
 // chính (trang chính, biểu tượng...) vào bộ nhớ đệm ngay trên máy. Từ lần
 // sau, nếu không có mạng, trình duyệt lấy thẳng từ bộ nhớ đệm đó ra dùng.
 
-const TEN_CACHE = "so-hoi-vien-v174"; // TS141 (23/9/2026) — bản phát hành chính thức, gộp đủ 7 thay đổi TS128 BƯỚC 36 (khóa Excel, thông báo ngữ cảnh, IndexedDB-primary, LLCT, Tải iOS, bố cục 3 nút, Đối khớp/chip)
+const TEN_CACHE = "so-hoi-vien-v175"; // TS142 (24/9/2026) — bản vá quan trọng: sửa checksum khởi động IndexedDB (nguy cơ mất dữ liệu chi tiết), máy mới, đối khớp Excel, Kiểm tra trùng lặp, wizard gọn
 const CAC_FILE_CAN_LUU = [
   "./",
   "./index.html",
