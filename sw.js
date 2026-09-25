@@ -5,7 +5,7 @@
 // chính (trang chính, biểu tượng...) vào bộ nhớ đệm ngay trên máy. Từ lần
 // sau, nếu không có mạng, trình duyệt lấy thẳng từ bộ nhớ đệm đó ra dùng.
 
-const TEN_CACHE = "so-hoi-vien-v177"; // TS143 (24/9/2026) — bản phát hành chính thức: sửa hiển thị 3 nút Rà soát/Kiểm tra trùng lặp trên iPhone, chống tách dòng "Năm sinh" trên tablet ngang; gộp toàn bộ TS142
+const TEN_CACHE = "so-hoi-vien-v179"; // TS145 (25/9/2026) — bản vá quan trọng nhất: sửa khóa cứng chế độ rút gọn (hiện tượng "chỉ còn tên"), chặn tab cũ ghi đè, máy mới trống, giữ chi tiết khi IndexedDB lỗi; gộp toàn bộ TS144
 const CAC_FILE_CAN_LUU = [
   "./",
   "./index.html",
