@@ -12,6 +12,10 @@
 <meta name="theme-color" content="#35543A">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<!-- THỬ NGHIỆM (2026-09-30): jsQR — giải mã QR CCCD gắn chip, thuần JS, không phụ
+     thuộc mạng sau khi tải lần đầu. Nếu đưa vào bản chính thức, nhớ thêm URL này
+     vào CAC_FILE_CAN_LUU của sw.js + bump TEN_CACHE để Service Worker cache offline. -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
   :root{
@@ -11271,6 +11275,11 @@ function renderModal(){
           <h2>${editing?'Cập nhật hội viên':'Thêm hội viên mới'}</h2>
           <button type="button" class="close-x" tabindex="-1" onclick="closeModal()">✕</button>
         </div>
+        ${!editing ? `
+        <div style="margin-bottom:10px;">
+          <button type="button" class="btn small" onclick="openQuetCCCD()">📷 Quét CCCD (tuỳ chọn)</button>
+          <div style="font-size:11.5px;color:var(--rice-light);margin-top:4px;">Quét mã QR ở mặt sau CCCD gắn chip (từ 2021) để tự điền — thẻ cũ không có mã này thì nhập tay như bình thường.</div>
+        </div>` : ""}
         <div class="grid2">
           <div class="field full"><label>Họ và tên *</label><input required id="f_ten" value="${esc(f.ten)}"></div>
           <div class="field"><label>Ngày sinh</label><div style="display:flex;gap:6px;">${renderTruongNgay('f_ngaySinh', f.ngaySinh, 1900, new Date().getFullYear(), "onNgaySinhFieldChange()")}</div></div>
@@ -11314,6 +11323,138 @@ function renderModal(){
 function removeModalRoot(){
   const m=document.getElementById("modal-root");
   if(m) m.innerHTML="";
+}
+
+// ========== THỬ NGHIỆM (2026-09-30): Quét CCCD gắn chip qua camera ==========
+// Chỉ dùng camera + jsQR đọc mã QR có sẵn trên thẻ (KHÔNG phải OCR/AI), toàn bộ
+// xử lý trên trình duyệt, không gửi ảnh/dữ liệu lên máy chủ nào. Kết quả chỉ
+// ĐIỀN SẴN vào đúng form "Thêm hội viên" đang mở để người dùng xem/sửa rồi tự
+// bấm Lưu — đi qua đúng saveModal() hiện có, không tạo đường lưu tắt.
+let _quetCCCDStream=null, _quetCCCDRAF=null;
+
+async function openQuetCCCD(){
+  let root=document.getElementById("modal-root-quetcccd");
+  if(!root){ root=document.createElement("div"); root.id="modal-root-quetcccd"; document.body.appendChild(root); }
+  root.innerHTML=`
+    <div class="overlay" style="z-index:9999;">
+      <div class="modal" style="width:min(92vw,420px);text-align:center;" onclick="event.stopPropagation()">
+        <div class="modal-head"><h2>📷 Quét CCCD</h2><button type="button" class="close-x" onclick="dongQuetCCCD()">✕</button></div>
+        <div id="quetCCCD_trangThai" style="font-size:13px;margin-bottom:8px;">Đang mở camera...</div>
+        <video id="quetCCCD_video" playsinline autoplay muted style="width:100%;border-radius:8px;background:#000;max-height:60vh;object-fit:cover;"></video>
+        <canvas id="quetCCCD_canvas" style="display:none;"></canvas>
+        <div class="modal-actions" style="margin-top:12px;justify-content:center;">
+          <button type="button" class="btn" onclick="dongQuetCCCD()">Huỷ, nhập tay</button>
+        </div>
+      </div>
+    </div>`;
+  const trangThai=document.getElementById("quetCCCD_trangThai");
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    trangThai.textContent="Trình duyệt này không hỗ trợ mở camera. Vui lòng nhập tay bên dưới.";
+    trangThai.style.color="var(--brick)";
+    setTimeout(dongQuetCCCD,2200);
+    return;
+  }
+  let stream;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+  }catch(e){
+    let ly="Không mở được camera. Vui lòng nhập tay bên dưới.";
+    if(e && (e.name==="NotAllowedError"||e.name==="PermissionDeniedError")) ly="Bạn đã từ chối quyền camera. Cấp lại quyền trong cài đặt trình duyệt nếu muốn dùng quét, hoặc nhập tay bên dưới.";
+    else if(e && (e.name==="NotFoundError"||e.name==="DevicesNotFoundError")) ly="Không tìm thấy camera trên thiết bị này. Vui lòng nhập tay bên dưới.";
+    trangThai.textContent=ly;
+    trangThai.style.color="var(--brick)";
+    setTimeout(dongQuetCCCD,2600);
+    return;
+  }
+  _quetCCCDStream=stream;
+  const video=document.getElementById("quetCCCD_video");
+  if(!video){ stream.getTracks().forEach(t=>t.stop()); _quetCCCDStream=null; return; } // modal đã bị đóng trong lúc chờ quyền camera
+  video.srcObject=stream;
+  try{ await video.play(); }catch(e){}
+  trangThai.textContent="Đưa mặt sau CCCD (có mã QR) vào khung hình...";
+  const canvas=document.getElementById("quetCCCD_canvas");
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});
+  const quet=()=>{
+    if(!_quetCCCDStream) return; // đã đóng (Huỷ / quét xong / lỗi)
+    if(video.readyState===video.HAVE_ENOUGH_DATA && video.videoWidth>0){
+      canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+      ctx.drawImage(video,0,0,canvas.width,canvas.height);
+      let anh=null;
+      try{ anh=ctx.getImageData(0,0,canvas.width,canvas.height); }catch(e){}
+      if(anh){
+        const ketQua=jsQR(anh.data,anh.width,anh.height);
+        if(ketQua){ _quetCCCDXuLyKetQua(ketQua); return; }
+      }
+    }
+    _quetCCCDRAF=requestAnimationFrame(quet);
+  };
+  _quetCCCDRAF=requestAnimationFrame(quet);
+}
+
+function dongQuetCCCD(){
+  if(_quetCCCDRAF){ cancelAnimationFrame(_quetCCCDRAF); _quetCCCDRAF=null; }
+  if(_quetCCCDStream){ _quetCCCDStream.getTracks().forEach(t=>t.stop()); _quetCCCDStream=null; }
+  const root=document.getElementById("modal-root-quetcccd");
+  if(root) root.innerHTML="";
+}
+
+function _quetCCCDXuLyKetQua(ketQua){
+  // AUDIT THỬ NGHIỆM (2026-09-30): BẮT BUỘC dùng binaryData + TextDecoder("utf-8")
+  // thay vì dùng thẳng ketQua.data — jsQR không đảm bảo giải mã đúng UTF-8 cho
+  // khối Byte không khai báo cờ ECI rõ ràng, dễ lỗi phông chữ tiếng Việt có dấu
+  // trong họ tên/địa chỉ (xem jsQR issue #129, đã kiểm chứng ở báo cáo khả thi).
+  let text;
+  try{
+    text=(ketQua.binaryData && ketQua.binaryData.length)
+      ? new TextDecoder("utf-8").decode(new Uint8Array(ketQua.binaryData))
+      : ketQua.data;
+  }catch(e){ text=ketQua.data; }
+  const daXuLy=_qrParseCCCD(text);
+  dongQuetCCCD();
+  if(!daXuLy){
+    alert("Mã QR này không phải mã CCCD gắn chip hợp lệ (hoặc chưa quét rõ). Vui lòng thử quét lại hoặc nhập tay bên dưới.");
+    return;
+  }
+  if(!state.modal){ return; } // phòng trường hợp modal Thêm hội viên đã bị đóng trong lúc quét
+  const f=state.modal.form;
+  f.ten=daXuLy.ten;
+  f.ngaySinh=daXuLy.ngaySinh;
+  if(daXuLy.gioiTinh) f.gioiTinh=daXuLy.gioiTinh;
+  f.cccd=daXuLy.cccd;
+  if(daXuLy.diaChi){
+    // PHÁT HIỆN QUA TEST (2026-09-30): ô Ghi chú là <input> 1 dòng — ký tự xuống dòng "\n" bị
+    // trình duyệt tự loại bỏ khi gán vào .value, khiến nội dung cũ + mới dính liền không đọc
+    // được (VD: "...trước khi quétĐịa chỉ..."). Dùng dấu phân cách hiển thị được trong ô 1
+    // dòng thay vì "\n" thật.
+    const dongMoi=`Địa chỉ (từ CCCD): ${daXuLy.diaChi}`;
+    f.ghiChu=(f.ghiChu && f.ghiChu.trim()) ? (f.ghiChu.trim()+" | "+dongMoi) : dongMoi;
+  }
+  render();
+}
+
+// Phân tích chuỗi QR CCCD gắn chip: 7 trường phân tách bởi "|" —
+// Số CCCD | Số CMND cũ | Họ và tên | Ngày sinh(DDMMYYYY) | Giới tính | Nơi thường trú | Ngày cấp(DDMMYYYY)
+// Chỉ cần đủ 6 trường đầu (bỏ qua Ngày cấp nếu thiếu). Không hợp lệ -> trả về null,
+// KHÔNG tự điền gì, để nơi gọi báo lỗi rõ ràng và quay về nhập tay.
+function _qrParseCCCD(raw){
+  if(!raw) return null;
+  const parts=String(raw).split("|");
+  if(parts.length<6) return null;
+  const soCccd=(parts[0]||"").trim();
+  const hoTen=(parts[2]||"").trim();
+  const ngaySinhRaw=(parts[3]||"").trim();
+  const gioiTinhRaw=(parts[4]||"").trim();
+  const diaChi=(parts[5]||"").trim();
+  if(!/^\d{12}$/.test(soCccd)) return null;
+  if(!hoTen) return null;
+  if(!/^\d{8}$/.test(ngaySinhRaw)) return null;
+  const dd=ngaySinhRaw.slice(0,2), mm=ngaySinhRaw.slice(2,4), yyyy=ngaySinhRaw.slice(4,8);
+  const dNum=+dd, mNum=+mm, yNum=+yyyy;
+  if(dNum<1||dNum>31||mNum<1||mNum>12||yNum<1900||yNum>new Date().getFullYear()) return null;
+  const ngaySinh=`${yyyy}-${mm}-${dd}`;
+  const gt=gioiTinhRaw;
+  const gioiTinh = gt==="Nữ" ? "Nữ" : (gt==="Nam" ? "Nam" : "");
+  return {cccd:soCccd, ten:hoTen, ngaySinh, gioiTinh, diaChi};
 }
 
 // ---------- Actions ----------
