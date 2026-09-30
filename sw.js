@@ -5,7 +5,7 @@
 // chính (trang chính, biểu tượng...) vào bộ nhớ đệm ngay trên máy. Từ lần
 // sau, nếu không có mạng, trình duyệt lấy thẳng từ bộ nhớ đệm đó ra dùng.
 
-const TEN_CACHE = "so-hoi-vien-v181"; // TS147 (30/9/2026) — thu hẹp phạm vi nhóm "Trùng tên (đã xác định khác người)" theo chi hội: 2 hồ sơ cùng Họ tên+Ngày sinh, khác CCCD, KHÁC chi hội -> ẩn hẳn khỏi Kiểm tra trùng lặp (trùng tên thuần túy toàn phường không có giá trị tham khảo); CÙNG chi hội -> vẫn hiện tham khảo như cũ; đồng bộ cả màn Quản trị lẫn wizard Nhập Excel; gộp toàn bộ TS146
+const TEN_CACHE = "so-hoi-vien-v182"; // TS148 (30/9/2026) — gộp: sửa cột "Nội dung" + tràn nhiều-cột bảng Thu-Chi trên điện thoại; sửa tràn viền "Nhật ký thao tác" trên điện thoại dọc; thêm tính năng "Quét CCCD gắn chip" (quét mã QR qua camera để tự điền Họ tên/Ngày sinh/Giới tính/Số CCCD khi thêm hội viên mới); gộp toàn bộ TS147
 const CAC_FILE_CAN_LUU = [
   "./",
   "./index.html",
@@ -17,6 +17,9 @@ const CAC_FILE_CAN_LUU = [
   // Thư viện tạo file Word (.docx) — trước đây bị bỏ sót khỏi danh sách lưu
   // offline, khiến nút "Xuất báo cáo Word" hỏng khi dùng offline trên máy mới.
   "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
+  // Thư viện giải mã QR (tính năng "Quét CCCD gắn chip", TS148) — cache sẵn để
+  // vẫn quét được khi offline sau lần mở có mạng đầu tiên.
+  "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js",
 ];
 
 // Khi Service Worker được cài đặt lần đầu: lưu sẵn các file chính vào bộ
