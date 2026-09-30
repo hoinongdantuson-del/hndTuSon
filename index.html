@@ -132,6 +132,17 @@
     transition:border-color .15s,color .15s,background-color .15s;}
   .cong-cu-chihoi-icon{font-size:14px;line-height:1;}
   .cong-cu-chihoi-nut>span:last-child{font-size:14px;}
+  /* THỬ NGHIỆM (2026-09-30): nút "Quét CCCD" trong modal Thêm hội viên — đổi từ nút chữ
+     nhật dài sang HÌNH VUÔNG, to hơn, icon xếp trên/chữ xếp dưới, dễ bấm trên điện thoại.
+     Dùng combo-class .btn.small.btn-quet-cccd (cùng mẫu .btn.small.cong-cu-chihoi-nut ở
+     trên) để chắc chắn override đúng padding/display mặc định của .btn, không phụ thuộc
+     thứ tự khai báo trong stylesheet. 88px vừa đủ lớn để dễ bấm (>44px khuyến nghị), vừa
+     đủ nhỏ để không chiếm quá nhiều chỗ trong modal ở mọi kích thước màn hình (modal hẹp
+     nhất 94vw của 320px ≈ 300px nội dung, nút 88px chỉ chiếm <30% bề ngang). */
+  .btn.small.btn-quet-cccd{flex-direction:column;align-items:center;justify-content:center;
+    gap:4px;width:88px;height:88px;padding:0;border-radius:12px;}
+  .btn-quet-cccd .icon-quet{font-size:30px;line-height:1;}
+  .btn-quet-cccd .lbl-quet{font-size:11.5px;font-weight:700;line-height:1.2;}
   input,select{font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;border-radius:6px;
     border:1px solid var(--line);background:var(--card);color:var(--ink);outline:none;}
   input:focus,select:focus{border-color:var(--rice);box-shadow:0 0 0 3px rgba(53,84,58,.12);}
@@ -11277,8 +11288,7 @@ function renderModal(){
         </div>
         ${!editing ? `
         <div style="margin-bottom:10px;">
-          <button type="button" class="btn small" onclick="openQuetCCCD()">📷 Quét CCCD (tuỳ chọn)</button>
-          <div style="font-size:11.5px;color:var(--rice-light);margin-top:4px;">Quét mã QR ở mặt sau CCCD gắn chip (từ 2021) để tự điền — thẻ cũ không có mã này thì nhập tay như bình thường.</div>
+          <button type="button" class="btn small btn-quet-cccd" onclick="openQuetCCCD()"><span class="icon-quet">📷</span><span class="lbl-quet">Quét CCCD</span></button>
         </div>` : ""}
         <div class="grid2">
           <div class="field full"><label>Họ và tên *</label><input required id="f_ten" value="${esc(f.ten)}"></div>
@@ -11371,7 +11381,7 @@ async function openQuetCCCD(){
   if(!video){ stream.getTracks().forEach(t=>t.stop()); _quetCCCDStream=null; return; } // modal đã bị đóng trong lúc chờ quyền camera
   video.srcObject=stream;
   try{ await video.play(); }catch(e){}
-  trangThai.textContent="Đưa mặt sau CCCD (có mã QR) vào khung hình...";
+  trangThai.textContent="Đưa mặt có mã QR của thẻ CCCD vào khung hình...";
   const canvas=document.getElementById("quetCCCD_canvas");
   const ctx=canvas.getContext("2d",{willReadFrequently:true});
   const quet=()=>{
