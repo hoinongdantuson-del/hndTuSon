@@ -5,7 +5,7 @@
 // chính (trang chính, biểu tượng...) vào bộ nhớ đệm ngay trên máy. Từ lần
 // sau, nếu không có mạng, trình duyệt lấy thẳng từ bộ nhớ đệm đó ra dùng.
 
-const TEN_CACHE = "so-hoi-vien-v179"; // TS145 (25/9/2026) — bản vá quan trọng nhất: sửa khóa cứng chế độ rút gọn (hiện tượng "chỉ còn tên"), chặn tab cũ ghi đè, máy mới trống, giữ chi tiết khi IndexedDB lỗi; gộp toàn bộ TS144
+const TEN_CACHE = "so-hoi-vien-v180"; // TS146 (30/9/2026) — gộp: phân loại lại "Kiểm tra trùng lặp" + wizard Nhập Excel (tách nhóm khác-CCCD ra khỏi "cần xác nhận"); sửa 4 lỗi LOW đã ghi nhận (#13 banner iPad, #20 PDF Safari, #21 giữ nguyên, #22 chưa xác nhận); sửa 2 lỗi tràn viền (Kho Văn bản trên iPhone, thẻ Thu-Chi số tiền lớn trên iPad/tablet); gộp toàn bộ TS145
 const CAC_FILE_CAN_LUU = [
   "./",
   "./index.html",
