@@ -132,17 +132,55 @@
     transition:border-color .15s,color .15s,background-color .15s;}
   .cong-cu-chihoi-icon{font-size:14px;line-height:1;}
   .cong-cu-chihoi-nut>span:last-child{font-size:14px;}
-  /* THỬ NGHIỆM (2026-09-30): nút "Quét CCCD" trong modal Thêm hội viên — đổi từ nút chữ
-     nhật dài sang HÌNH VUÔNG, to hơn, icon xếp trên/chữ xếp dưới, dễ bấm trên điện thoại.
-     Dùng combo-class .btn.small.btn-quet-cccd (cùng mẫu .btn.small.cong-cu-chihoi-nut ở
-     trên) để chắc chắn override đúng padding/display mặc định của .btn, không phụ thuộc
-     thứ tự khai báo trong stylesheet. 88px vừa đủ lớn để dễ bấm (>44px khuyến nghị), vừa
-     đủ nhỏ để không chiếm quá nhiều chỗ trong modal ở mọi kích thước màn hình (modal hẹp
-     nhất 94vw của 320px ≈ 300px nội dung, nút 88px chỉ chiếm <30% bề ngang). */
+  /* THỬ NGHIỆM (2026-09-30, đợt 2 — 2026-10-01): nút "Quét CCCD"/"Chọn ảnh CCCD" trong modal
+     Thêm hội viên — HÌNH VUÔNG ban đầu (88×88px), icon xếp trên/chữ xếp dưới, dễ bấm trên
+     điện thoại. Dùng combo-class .btn.small.btn-quet-cccd (cùng mẫu .btn.small.cong-cu-
+     chihoi-nut ở trên) để chắc chắn override đúng padding/display mặc định của .btn, không
+     phụ thuộc thứ tự khai báo trong stylesheet.
+     ĐỢT 2: giảm chiều cao 88px -> 68px (hơi chữ nhật, nằm trong khoảng 64-72px đã cân nhắc)
+     cho cân đối hơn với các trường xung quanh trong form (trường "Họ và tên" label+input
+     cao ~55-60px, mẫu .cong-cu-chihoi-nut tương tự dùng min-height:56px) — vẫn đủ rộng
+     (>44px khuyến nghị cho mục tiêu chạm). GIỮ NGUYÊN icon 30px (không thu nhỏ theo tỉ lệ
+     chiều cao) để icon không bị "chìm" khi nút thấp lại — còn đủ chỗ dọc: 30(icon)+3(gap)+
+     nhãn chữ (~24px, có thể 2 dòng) ≈ 57px, vừa trong 68px.
+     LÀM NỔI BẬT cho vai Chi hội dễ nhận ra (dùng thường xuyên khi thêm hội viên).
+     ĐỢT 3 (2026-10-01): lần đầu dùng nền đặc --rice (giống hệt .btn.primary "Lưu"/"+Thêm hội
+     viên") — qua xem xét lại, gây nhầm lẫn vì trùng màu với nút hành động chính thật sự
+     trong cùng 1 form (nhiều nút đậm cùng màu khó phân biệt). Đổi cách làm nổi bật: GIỮ nền
+     nhạt/trung tính y hệt nút phụ mặc định (var(--card)/var(--ink), không còn đặc --rice),
+     chỉ dùng VIỀN DÀY 2.5px màu --rice để nổi bật — nổi bật nhờ ĐƯỜNG VIỀN chứ không phải
+     khối màu, nên không còn lẫn với nút "Lưu".
+     ĐỢT 4 (2026-10-01): giảm thêm chiều cao 68px -> 56px, khớp ĐÚNG mốc min-height:56px của
+     .cong-cu-chihoi-nut (3 nút công cụ Chi hội) để đồng bộ với nút khác trong app, không
+     phát sinh số đo riêng. Tăng viền 2.5px -> 3.5px để nổi bật rõ hơn nữa (vẫn màu --rice,
+     chỉ đổi độ dày). Bỏ hẳn box-shadow — ở chiều cao thấp hơn, viền dày 3.5px đã đủ là điểm
+     nhấn, giữ thêm shadow dễ trông nặng/thô.
+     Icon 30px: đo thực tế (Playwright, t_vienDam2.js) cho thấy nhãn "Chọn ảnh CCCD" xuống 2
+     dòng ở bề rộng 88px, icon 30px + khoảng cách 3px + nhãn 2 dòng (~25px) = ~58px, VƯỢT
+     vùng chứa còn lại sau khi trừ viền (56 - 2×3 = 50px) -> icon bị tràn khỏi khung nút (xác
+     nhận qua test, không phải suy đoán). Theo đúng phương án dự phòng đã nêu trong lệnh,
+     giảm icon 30px -> 22px (mức tối thiểu đủ để icon+khoảng cách+nhãn 2 dòng vừa khít 50px:
+     22+3+25=50) — đã đo lại xác nhận hết tràn ở mọi mốc màn hình.
+     ĐỢT 5 (2026-10-01): đổi nhãn rõ nghĩa hơn — "Quét CCCD" -> "Quét mã QR trên CCCD",
+     "Chọn ảnh CCCD" -> "Chọn ảnh CCCD có mã QR" — dài hơn đáng kể, 88px không đủ chỗ. Đo
+     THỰC TẾ (không suy đoán) độ rộng chữ bằng span ẩn cùng font/weight/size thật của nút
+     (dbg_doChuNhan.js): dòng dài nhất "Chọn ảnh CCCD" rộng 124px khi không ngắt — vượt xa
+     vùng chứa 88px. Chọn phương án TĂNG CHIỀU RỘNG (ưu tiên 1 trong lệnh) thay vì ép xuống
+     3 dòng chữ nhỏ hoặc hạ cỡ chữ dưới ngưỡng dễ đọc: rộng 88px -> 144px (vùng chứa sau trừ
+     viền 144-7=137px, dư ~13px so với dòng dài nhất 124px, đủ an toàn cho khác biệt font
+     dự phòng nếu máy không có Inter). Cao 56px -> 60px (vùng chứa 60-7=53px, vừa đủ cho
+     icon 22px + khoảng cách 3px + nhãn 2 dòng ~25px = 50px, dư 3px) — tăng nhẹ +4px, không
+     đáng kể so với mức đã chốt. Ngắt dòng THỦ CÔNG bằng <br> + &nbsp; nối cụm từ (đúng quy
+     ước đã dùng cho .cong-cu-chihoi-nut) thay vì để trình duyệt tự ngắt theo khoảng trắng —
+     đảm bảo luôn ngắt đúng chỗ ("Quét mã QR"/"trên CCCD" và "Chọn ảnh CCCD"/"có mã QR"), không
+     phụ thuộc độ rộng cụ thể của từng máy/font. Icon giữ nguyên 22px (vùng chứa mới đã dư
+     chỗ, không cần đổi thêm). Viền/màu nền/màu chữ GIỮ NGUYÊN như ĐỢT 4, không đổi. */
   .btn.small.btn-quet-cccd{flex-direction:column;align-items:center;justify-content:center;
-    gap:4px;width:88px;height:88px;padding:0;border-radius:12px;}
-  .btn-quet-cccd .icon-quet{font-size:30px;line-height:1;}
-  .btn-quet-cccd .lbl-quet{font-size:11.5px;font-weight:700;line-height:1.2;}
+    gap:3px;width:144px;height:60px;padding:0;border-radius:12px;
+    background:var(--card);border:3.5px solid var(--rice);color:var(--rice-dark);}
+  .btn.small.btn-quet-cccd:hover{background:var(--paper-alt);border-color:var(--rice-dark);color:var(--rice-dark);}
+  .btn-quet-cccd .icon-quet{font-size:22px;line-height:1;}
+  .btn-quet-cccd .lbl-quet{font-size:11px;font-weight:700;line-height:1.15;color:var(--rice-dark);}
   input,select{font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;border-radius:6px;
     border:1px solid var(--line);background:var(--card);color:var(--ink);outline:none;}
   input:focus,select:focus{border-color:var(--rice);box-shadow:0 0 0 3px rgba(53,84,58,.12);}
@@ -11343,8 +11381,8 @@ function renderModal(){
         </div>
         ${!editing ? `
         <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
-          <button type="button" class="btn small btn-quet-cccd" onclick="openQuetCCCD()"><span class="icon-quet">📷</span><span class="lbl-quet">Quét CCCD</span></button>
-          <button type="button" class="btn small btn-quet-cccd" onclick="document.getElementById('quetCCCD_fileInput').click()"><span class="icon-quet">🖼️</span><span class="lbl-quet">Chọn ảnh CCCD</span></button>
+          <button type="button" class="btn small btn-quet-cccd" onclick="openQuetCCCD()"><span class="icon-quet">📷</span><span class="lbl-quet">Quét&nbsp;mã&nbsp;QR<br>trên&nbsp;CCCD</span></button>
+          <button type="button" class="btn small btn-quet-cccd" onclick="document.getElementById('quetCCCD_fileInput').click()"><span class="icon-quet">🖼️</span><span class="lbl-quet">Chọn&nbsp;ảnh&nbsp;CCCD<br>có&nbsp;mã&nbsp;QR</span></button>
           <input type="file" id="quetCCCD_fileInput" accept="image/*" style="display:none;" onchange="_xuLyFileAnhCCCD(event)">
         </div>` : ""}
         <div class="grid2">
