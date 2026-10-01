@@ -11287,8 +11287,10 @@ function renderModal(){
           <button type="button" class="close-x" tabindex="-1" onclick="closeModal()">✕</button>
         </div>
         ${!editing ? `
-        <div style="margin-bottom:10px;">
+        <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
           <button type="button" class="btn small btn-quet-cccd" onclick="openQuetCCCD()"><span class="icon-quet">📷</span><span class="lbl-quet">Quét CCCD</span></button>
+          <button type="button" class="btn small btn-quet-cccd" onclick="document.getElementById('quetCCCD_fileInput').click()"><span class="icon-quet">🖼️</span><span class="lbl-quet">Chọn ảnh CCCD</span></button>
+          <input type="file" id="quetCCCD_fileInput" accept="image/*" style="display:none;" onchange="_xuLyFileAnhCCCD(event)">
         </div>` : ""}
         <div class="grid2">
           <div class="field full"><label>Họ và tên *</label><input required id="f_ten" value="${esc(f.ten)}"></div>
@@ -11478,6 +11480,68 @@ function _qrParseCCCD(raw){
   const gt=gioiTinhRaw;
   const gioiTinh = gt==="Nữ" ? "Nữ" : (gt==="Nam" ? "Nam" : "");
   return {cccd:soCccd, ten:hoTen, ngaySinh, gioiTinh, diaChi};
+}
+
+// ========== THỬ NGHIỆM (2026-10-01): Chọn ảnh CCCD có sẵn để giải mã QR ==========
+// Dành cho hội viên ở xa tự chụp gửi qua Zalo/tin nhắn — cán bộ chọn ảnh đã tải về máy
+// thay vì quét trực tiếp bằng camera sống. TÁI DÙNG ĐÚNG _qrParseCCCD() và
+// _quetCCCDXuLyKetQua() đã có cho luồng quét trực tiếp — không tạo luồng xử lý/map dữ
+// liệu riêng, chỉ khác nguồn ảnh đưa vào jsQR(). Toàn bộ đọc file + giải mã chạy ngay
+// trên trình duyệt (FileReader/createImageBitmap + canvas cục bộ), KHÔNG tải ảnh lên
+// máy chủ nào. Ảnh gốc KHÔNG được lưu vào state/localStorage/IndexedDB — chỉ dùng tạm
+// trong biến cục bộ của hàm này rồi hết vòng đời, chỉ dữ liệu đã giải mã (nếu hợp lệ)
+// mới được ghi vào form.
+async function _xuLyFileAnhCCCD(evt){
+  const input=evt.target;
+  const file=input.files && input.files[0];
+  input.value=""; // reset ngay để chọn lại đúng file đó lần sau vẫn kích hoạt onchange
+  if(!file) return;
+  const GIOI_HAN_BYTES=25*1024*1024; // 25MB — đủ rộng cho ảnh chụp camera gốc, chặn file bất thường lớn làm treo trình duyệt khi vẽ canvas
+  if(file.size>GIOI_HAN_BYTES){
+    alert(`Ảnh này dung lượng ${(file.size/1024/1024).toFixed(1)}MB, vượt quá giới hạn 25MB. Vui lòng chọn ảnh khác (có thể chụp lại ở độ phân giải thấp hơn) hoặc dùng "Quét CCCD" bằng camera trực tiếp.`);
+    return;
+  }
+  if(!state.modal) return; // phòng trường hợp modal Thêm hội viên đã bị đóng trong lúc chọn file
+  let anhNguon=null, urlTam=null;
+  try{
+    if(window.createImageBitmap){
+      anhNguon=await createImageBitmap(file);
+    } else {
+      urlTam=URL.createObjectURL(file);
+      const img=new Image();
+      await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src=urlTam; });
+      anhNguon=img;
+    }
+  }catch(e){
+    if(urlTam) URL.revokeObjectURL(urlTam);
+    alert("Không đọc được file này — có thể không phải ảnh hợp lệ hoặc bị hỏng. Vui lòng chọn ảnh khác hoặc dùng camera trực tiếp.");
+    return;
+  }
+  const rong=anhNguon.width||anhNguon.naturalWidth, cao=anhNguon.height||anhNguon.naturalHeight;
+  if(!rong || !cao){
+    if(anhNguon.close) anhNguon.close();
+    if(urlTam) URL.revokeObjectURL(urlTam);
+    alert("Không đọc được kích thước ảnh này. Vui lòng chọn ảnh khác.");
+    return;
+  }
+  const canvas=document.createElement("canvas");
+  canvas.width=rong; canvas.height=cao;
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});
+  ctx.drawImage(anhNguon,0,0,rong,cao);
+  if(anhNguon.close) anhNguon.close(); // giải phóng ngay sau khi vẽ xong, không giữ ảnh gốc lâu hơn cần thiết
+  if(urlTam) URL.revokeObjectURL(urlTam);
+  let anh=null;
+  try{ anh=ctx.getImageData(0,0,canvas.width,canvas.height); }catch(e){}
+  if(!anh){
+    alert("Không đọc được dữ liệu ảnh. Vui lòng chọn ảnh khác.");
+    return;
+  }
+  const ketQua=jsQR(anh.data,anh.width,anh.height);
+  if(!ketQua){
+    alert("Không tìm thấy mã QR trong ảnh này (ảnh có thể mờ, bị cắt góc có mã QR, hoặc không phải ảnh CCCD gắn chip). Vui lòng chọn ảnh khác hoặc dùng \"Quét CCCD\" bằng camera trực tiếp.");
+    return;
+  }
+  _quetCCCDXuLyKetQua(ketQua); // dùng lại đúng hàm xử lý/giải mã UTF-8/map trường đã có cho luồng quét trực tiếp
 }
 
 // ---------- Actions ----------
