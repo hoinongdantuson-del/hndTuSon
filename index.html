@@ -132,17 +132,29 @@
     transition:border-color .15s,color .15s,background-color .15s;}
   .cong-cu-chihoi-icon{font-size:14px;line-height:1;}
   .cong-cu-chihoi-nut>span:last-child{font-size:14px;}
-  /* THỬ NGHIỆM (2026-09-30): nút "Quét CCCD" trong modal Thêm hội viên — đổi từ nút chữ
-     nhật dài sang HÌNH VUÔNG, to hơn, icon xếp trên/chữ xếp dưới, dễ bấm trên điện thoại.
-     Dùng combo-class .btn.small.btn-quet-cccd (cùng mẫu .btn.small.cong-cu-chihoi-nut ở
-     trên) để chắc chắn override đúng padding/display mặc định của .btn, không phụ thuộc
-     thứ tự khai báo trong stylesheet. 88px vừa đủ lớn để dễ bấm (>44px khuyến nghị), vừa
-     đủ nhỏ để không chiếm quá nhiều chỗ trong modal ở mọi kích thước màn hình (modal hẹp
-     nhất 94vw của 320px ≈ 300px nội dung, nút 88px chỉ chiếm <30% bề ngang). */
+  /* THỬ NGHIỆM (2026-09-30, đợt 2 — 2026-10-01): nút "Quét CCCD"/"Chọn ảnh CCCD" trong modal
+     Thêm hội viên — HÌNH VUÔNG ban đầu (88×88px), icon xếp trên/chữ xếp dưới, dễ bấm trên
+     điện thoại. Dùng combo-class .btn.small.btn-quet-cccd (cùng mẫu .btn.small.cong-cu-
+     chihoi-nut ở trên) để chắc chắn override đúng padding/display mặc định của .btn, không
+     phụ thuộc thứ tự khai báo trong stylesheet.
+     ĐỢT 2: giảm chiều cao 88px -> 68px (hơi chữ nhật, nằm trong khoảng 64-72px đã cân nhắc)
+     cho cân đối hơn với các trường xung quanh trong form (trường "Họ và tên" label+input
+     cao ~55-60px, mẫu .cong-cu-chihoi-nut tương tự dùng min-height:56px) — vẫn đủ rộng
+     (>44px khuyến nghị cho mục tiêu chạm). GIỮ NGUYÊN icon 30px (không thu nhỏ theo tỉ lệ
+     chiều cao) để icon không bị "chìm" khi nút thấp lại — còn đủ chỗ dọc: 30(icon)+3(gap)+
+     nhãn chữ (~24px, có thể 2 dòng) ≈ 57px, vừa trong 68px.
+     LÀM NỔI BẬT cho vai Chi hội dễ nhận ra (dùng thường xuyên khi thêm hội viên): đổi màu
+     nền sang ĐÚNG màu chủ đạo --rice (xanh đậm, giống hệt .btn.primary dùng cho "Lưu"/"+Thêm
+     hội viên") thay vì màu viền-trắng mặc định của .btn — tận dụng ngôn ngữ thị giác "hành
+     động chính" đã có sẵn trong toàn app, không tạo tông màu mới. Thêm box-shadow nhẹ để nút
+     nổi khối hơn so với nền giấy xung quanh. */
   .btn.small.btn-quet-cccd{flex-direction:column;align-items:center;justify-content:center;
-    gap:4px;width:88px;height:88px;padding:0;border-radius:12px;}
+    gap:3px;width:88px;height:68px;padding:0;border-radius:12px;
+    background:var(--rice);border-color:var(--rice);color:#F7F2E4;
+    box-shadow:0 3px 8px rgba(34,58,40,.35);}
+  .btn.small.btn-quet-cccd:hover{background:var(--rice-dark);border-color:var(--rice-dark);color:#F7F2E4;}
   .btn-quet-cccd .icon-quet{font-size:30px;line-height:1;}
-  .btn-quet-cccd .lbl-quet{font-size:11.5px;font-weight:700;line-height:1.2;}
+  .btn-quet-cccd .lbl-quet{font-size:11px;font-weight:700;line-height:1.15;color:#F7F2E4;}
   input,select{font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;border-radius:6px;
     border:1px solid var(--line);background:var(--card);color:var(--ink);outline:none;}
   input:focus,select:focus{border-color:var(--rice);box-shadow:0 0 0 3px rgba(53,84,58,.12);}
