@@ -5,7 +5,7 @@
 // chính (trang chính, biểu tượng...) vào bộ nhớ đệm ngay trên máy. Từ lần
 // sau, nếu không có mạng, trình duyệt lấy thẳng từ bộ nhớ đệm đó ra dùng.
 
-const TEN_CACHE = "so-hoi-vien-v182"; // TS148 (30/9/2026) — gộp: sửa cột "Nội dung" + tràn nhiều-cột bảng Thu-Chi trên điện thoại; sửa tràn viền "Nhật ký thao tác" trên điện thoại dọc; thêm tính năng "Quét CCCD gắn chip" (quét mã QR qua camera để tự điền Họ tên/Ngày sinh/Giới tính/Số CCCD khi thêm hội viên mới); gộp toàn bộ TS147
+const TEN_CACHE = "so-hoi-vien-v185"; // TS148 (1/10/2026) — gộp: sửa cột "Nội dung" + tràn nhiều-cột bảng Thu-Chi trên điện thoại; sửa tràn viền "Nhật ký thao tác" trên điện thoại dọc; thêm tính năng "Quét CCCD gắn chip" (quét QR qua camera trực tiếp — độ phân giải 1920x1080 + tự lấy nét — HOẶC chọn ảnh CCCD có sẵn trên máy, để tự điền Họ tên/Ngày sinh/Giới tính/Số CCCD khi thêm hội viên mới); căn đều hàng nút chức năng (vai Quản trị) trên điện thoại/máy tính bảng — phân biệt bằng khả năng cảm ứng (hover:none và pointer:coarse), không chỉ độ rộng màn hình, để không ảnh hưởng PC/laptop dùng chuột dù màn nhỏ; gộp toàn bộ TS147
 const CAC_FILE_CAN_LUU = [
   "./",
   "./index.html",
