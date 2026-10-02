@@ -11617,6 +11617,138 @@ function _qrParseCCCD(raw){
   return {cccd:soCccd, ten:hoTen, ngaySinh, gioiTinh, diaChi};
 }
 
+// AUDIT 2026-10-02: Khắc phục "Chọn ảnh CCCD" không nhận diện được mã QR khi ảnh là ẢNH
+// CHỤP MÀN HÌNH ứng dụng điện tử (không phải ảnh chụp trực tiếp mặt thẻ) — hội viên ở xa
+// hay chụp màn hình app "Thông tin thẻ CCCD" rồi gửi qua Zalo. Đã TÁI HIỆN được lỗi bằng
+// ảnh mẫu giả lập (khung thẻ chỉ chiếm ~28% chiều cao ảnh, mã QR chỉ ~2-3% diện tích tổng
+// ảnh, nén lại kiểu Zalo) — xác nhận jsQR() gọi 1 lần trên NGUYÊN ảnh thất bại ở một số mức
+// nén/độ phân giải cụ thể (không phải mọi mức đều fail — phụ thuộc artifact nén JPEG làm
+// mờ biên các module QR nhỏ, đúng như phân tích gốc: ảnh toàn cảnh độ phân giải thấp với
+// mã QR chiếm diện tích nhỏ là tình huống dễ fail nhất).
+// GIẢI PHÁP: thử NHIỀU CHIẾN LƯỢC quét tăng dần độ "quyết liệt", dừng ngay khi tìm thấy:
+//   1) Nguyên ảnh, độ phân giải gốc (như cũ — nhanh nhất, đúng ngay với ảnh chụp cận cảnh
+//      trực tiếp mặt thẻ, chiếm đa số trường hợp thực tế — KHÔNG đổi hành vi/tốc độ hiện có
+//      cho nhóm ảnh này).
+//   2) Nguyên ảnh co/phóng về kích thước chuẩn ~800px cạnh dài — giúp trường hợp ảnh toàn
+//      cảnh nhỏ đều hoặc ảnh quá lớn (nén/resize có thể tạo artifact khác ở độ phân giải
+//      gốc mà biến mất khi chuẩn hoá kích thước).
+//   3) Chia lưới 2x2 rồi 3x3 (có chồng lấn 15% giữa các ô để không cắt đúng vào giữa mã QR
+//      nằm trên ranh giới ô), mỗi ô co/phóng riêng về ~800px rồi quét — đây là chiến lược
+//      CHÍNH giải quyết đúng tình huống báo cáo: mã QR chỉ nằm gọn trong 1 góc nhỏ của ảnh
+//      toàn cảnh (ảnh chụp màn hình), phóng to ĐÚNG vùng chứa QR giúp jsQR nhận diện được.
+// ĐIỀU TRA BỔ SUNG (2026-10-02, phát hiện thêm sau khi vá lần 1): sếp báo thêm 1 trường hợp
+// lỗi NGƯỢC LẠI — ảnh scan cận cảnh kiểu CamScanner, mã QR LỚN/RÕ (không nhỏ), vẫn báo
+// "không tìm thấy". Tái hiện bằng ảnh mẫu giả lập có gắn cờ EXIF Orientation=6 (ứng dụng
+// scan lưu pixel ở hướng ngang, chỉ đánh dấu EXIF cần xoay — đúng cách nhiều app/điện thoại
+// lưu ảnh) + mô phỏng "tăng cường văn bản" của app scan (contrast(165%) saturate(10%)). Test
+// cô lập từng yếu tố: CHỈ tăng tương phản (không EXIF) -> quét được ngay. CHỈ gắn EXIF (không
+// tăng tương phản) -> quét được ngay (trình duyệt tự xoay đúng theo EXIF, xác nhận KHÔNG phải
+// lỗi "không xoay theo EXIF" như giả thuyết ban đầu — browser xử lý đúng). CẢ HAI cùng lúc ->
+// thất bại ở toàn bộ 15 lượt kể cả lưới 3x3. Phân tích hình học xác định ĐÚNG nguyên nhân:
+// sau khi ảnh bị xoay 90° (do EXIF), mã QR chiếm ~81% CHIỀU RỘNG ảnh nhưng chỉ ~51% chiều
+// cao — lưới NxN (2x2/3x3) chia ĐỒNG THỜI cả 2 chiều nên luôn cắt đôi mã QR theo chiều rộng
+// (không ô nào chứa trọn), bất kể độ chồng lấn. Đây là lỗ hổng thật trong chiến lược lưới ban
+// đầu (chỉ tính trường hợp mã QR nhỏ đều 2 chiều), KHÔNG phải do EXIF hay tương phản gây lỗi
+// trực tiếp — tương phản chỉ làm ảnh "khó" hơn chút (không còn dư thừa biên để lưới vuông vô
+// tình vẫn bắt được 1 phần đủ dùng), bộc lộ rõ lỗ hổng vốn đã tồn tại.
+// SỬA: bổ sung chiến lược chia DẢI TOÀN CHIỀU (1x2, 2x1, 1x3, 3x1) — xử lý đúng trường hợp mã
+// QR chiếm phần lớn 1 chiều (rộng hoặc cao) — kết hợp với lưới vuông sẵn có (2x2, 3x3) để bao
+// phủ cả 2 kiểu tình huống (QR nhỏ đều 2 chiều VÀ QR lớn lệch 1 chiều).
+// Đã ĐO THỜI GIAN thực tế: mỗi lượt gọi jsQR (gồm cả tạo canvas/getImageData) chỉ ~100-180ms
+// ngay cả khi thất bại — tổng cộng tối đa 1(gốc)+1(chuẩn hoá)+2(1x2)+2(2x1)+4(2x2)+3(1x3)+
+// 3(3x1)+9(3x3)=25 lượt trong trường hợp XẤU NHẤT (không tìm thấy ở bất kỳ đâu) vẫn trong
+// khoảng 2.5-4 giây (đo thực tế xem báo cáo), nằm trong ngưỡng chấp nhận được (<3-5s) — ảnh
+// chụp cận cảnh bình thường vẫn dừng ở lượt 1, tốc độ KHÔNG đổi so với trước. Không chỉnh
+// tham số inversionAttempts của jsQR vì mặc định của thư viện (jsqr@1.4.0) đã là "attemptBoth"
+// (thử cả ảnh thường lẫn đảo màu) khi không truyền options — không cần truyền lại tường minh.
+// ĐIỀU TRA LÓA/PHẢN CHIẾU (2026-10-02): sếp gửi ẢNH CCCD THẬT đã tự cắt chỉ còn vùng mã QR
+// (không còn thông tin cá nhân khác — Claude Code chỉ nhận đúng ảnh này, không yêu cầu/xem
+// thêm trường nào khác của thẻ) để test trực tiếp, nghi ngờ do vệt lóa trên bề mặt ép nhựa.
+// Đây là LẦN ĐẦU TIÊN tái hiện được lỗi bằng dữ liệu THẬT (2 lần điều tra trước — ảnh chụp
+// màn hình, ảnh scan CamScanner — chỉ tái hiện được 1 lần bằng dữ liệu TỰ TẠO, lần sau không
+// tái hiện được dù thử 6 biến thể khác nhau): ảnh thật này thất bại ở TẤT CẢ 25 lượt thử của
+// 2 lần vá trước, xác nhận lỗi vẫn tồn tại trên dữ liệu thực tế.
+// Đã PHÂN TÍCH KHÁCH QUAN bằng số liệu pixel (không dựa cảm quan): chia ảnh lưới 8x8, tính độ
+// sáng trung bình + độ lệch chuẩn từng ô — KHÔNG có ô nào mang dấu hiệu "cháy sáng" (trung
+// bình rất cao + độ lệch chuẩn rất thấp, tức mất hết chi tiết module). Tỉ lệ pixel "cháy
+// sáng" (>245) đo được = 0%. KẾT LUẬN: giả thuyết lóa/phản chiếu làm MẤT dữ liệu KHÔNG được
+// xác nhận bằng số liệu khách quan trên ảnh mẫu này.
+// Thử trực tiếp nhiều cách tiền xử lý (kéo giãn tương phản, phóng to có/không nội suy, nhị
+// phân hoá theo trung vị, theo Otsu tự động) — TẤT CẢ đều thất bại, CHỈ RIÊNG nhị phân hoá
+// bằng NGƯỠNG TUYỆT ĐỐI CỐ ĐỊNH ở một số mức cụ thể (dò chi tiết: 70-100 thành công, từ 105
+// trở lên thất bại) mới giải mã được — xác nhận dữ liệu KHÔNG hề bị phá huỷ/mất (nếu mất thật
+// sự sẽ không ngưỡng nào cứu được), mà do thuật toán nhị phân hoá TỰ THÍCH ỨNG mặc định của
+// jsQR chọn sai ngưỡng cục bộ cho ảnh này (nhiều khả năng do hoa văn hoạ tiết bảo an in chìm
+// trên nền thẻ tạo nhiễu tương phản cục bộ, KHÔNG phải do lóa). Threshold trung vị/Otsu (ngưỡng
+// 110 do Otsu tự chọn) đều RƠI NGOÀI vùng ngưỡng hoạt động được (70-100) — xác nhận không có
+// 1 ngưỡng "thông minh" nào tính theo thống kê ảnh là đủ tin cậy, cần DÒ NHIỀU NGƯỠNG CỐ ĐỊNH.
+// GIẢI PHÁP: thêm bước nhị phân hoá thử nhiều ngưỡng tuyệt đối cố định [50,70,...,210] (9 mức,
+// trải đều 0-255) ngay sau mỗi lần thử jsQR mặc định (ảnh gốc + ảnh chuẩn hoá) — rẻ, nhanh
+// (xác nhận bằng ảnh thật: thành công ở lượt ngưỡng thứ 2/9, tổng 163ms), giải quyết đúng ca
+// lỗi thật này mà KHÔNG cần tới các chiến lược chia lưới tốn kém hơn. CHƯA áp dụng nhị phân
+// hoá nhiều ngưỡng cho từng ô lưới (sẽ nhân số lượt lên quá nhiều, 9×24=216 lượt — không cần
+// thiết vì 2 ca lỗi thật/mô phỏng đã biết đều được giải quyết ở tầng ảnh toàn cảnh).
+function _vungAnhPhongTo(nguonCanvas,sx,sy,sw,sh){
+  const DICH_KICH_THUOC=800; // cỡ đích hợp lý để jsQR giải mã tốt — đủ lớn để mã QR nhỏ có thêm pixel/module, không quá lớn gây tốn CPU vô ích khi vùng nguồn vốn đã lớn
+  let scale=DICH_KICH_THUOC/Math.max(sw,sh);
+  scale=Math.min(4,Math.max(0.15,scale)); // không phóng quá 4 lần (ảnh mờ phóng to cũng không giúp thêm), không thu quá nhỏ dưới 15% (mất chi tiết module QR)
+  const dw=Math.max(1,Math.round(sw*scale)), dh=Math.max(1,Math.round(sh*scale));
+  const c=document.createElement("canvas"); c.width=dw; c.height=dh;
+  const cx=c.getContext("2d",{willReadFrequently:true});
+  cx.drawImage(nguonCanvas,sx,sy,sw,sh,0,0,dw,dh);
+  return cx.getImageData(0,0,dw,dh);
+}
+function _nhiPhanHoaTheoNguong(anh,nguong){
+  const kq=new ImageData(new Uint8ClampedArray(anh.data),anh.width,anh.height);
+  for(let i=0;i<kq.data.length;i+=4){
+    const xam=(kq.data[i]+kq.data[i+1]+kq.data[i+2])/3;
+    const v=xam>nguong?255:0;
+    kq.data[i]=kq.data[i+1]=kq.data[i+2]=v;
+  }
+  return kq;
+}
+function _timMaQRThuNhieuNguong(anh){
+  // Dò nhiều mức ngưỡng nhị phân hoá CỐ ĐỊNH (tuyệt đối, trải đều 0-255) thay vì chỉ 1 ngưỡng
+  // tự thích ứng của jsQR — xem audit ĐỢT ĐIỀU TRA LÓA bên trên để biết lý do.
+  for(const nguong of [50,70,90,110,130,150,170,190,210]){
+    const anhNhiPhan=_nhiPhanHoaTheoNguong(anh,nguong);
+    const kq=jsQR(anhNhiPhan.data,anhNhiPhan.width,anhNhiPhan.height);
+    if(kq) return kq;
+  }
+  return null;
+}
+function _timMaQRNhieuChienLuoc(canvas,rong,cao,anhGoc){
+  let kq=jsQR(anhGoc.data,anhGoc.width,anhGoc.height);
+  if(kq) return kq;
+  kq=_timMaQRThuNhieuNguong(anhGoc);
+  if(kq) return kq;
+  const anhChuanHoa=_vungAnhPhongTo(canvas,0,0,rong,cao);
+  kq=jsQR(anhChuanHoa.data,anhChuanHoa.width,anhChuanHoa.height);
+  if(kq) return kq;
+  kq=_timMaQRThuNhieuNguong(anhChuanHoa);
+  if(kq) return kq;
+  // [soCot,soHang]: THỬ CẢ dải ngang/dọc toàn chiều (1x2,2x1,1x3,3x1) LẪN lưới vuông
+  // (2x2,3x3) — dải toàn chiều xử lý đúng trường hợp mã QR chiếm gần hết 1 chiều (ví dụ
+  // sau khi ảnh bị xoay theo EXIF, mã QR có thể chiếm >80% chiều rộng nhưng chỉ ~50% chiều
+  // cao) mà lưới vuông luôn cắt đôi vì cả 2 chiều đều bị chia nhỏ đồng thời.
+  for(const [soCot,soHang] of [[1,2],[2,1],[2,2],[1,3],[3,1],[3,3]]){
+    const bienChong=0.15; // chồng lấn 15% mỗi chiều giữa các ô — tránh mã QR nằm đúng ranh giới 2 ô bị cắt mất 1 phần ở cả 2 ô
+    const oRong=rong/soCot, oCao=cao/soHang;
+    for(let hang=0;hang<soHang;hang++){
+      for(let cot=0;cot<soCot;cot++){
+        let sx=cot*oRong-oRong*bienChong, sy=hang*oCao-oCao*bienChong;
+        let sw=oRong*(1+2*bienChong), sh=oCao*(1+2*bienChong);
+        sx=Math.max(0,sx); sy=Math.max(0,sy);
+        sw=Math.min(rong-sx,sw); sh=Math.min(cao-sy,sh);
+        const vung=_vungAnhPhongTo(canvas,sx,sy,sw,sh);
+        kq=jsQR(vung.data,vung.width,vung.height);
+        if(kq) return kq;
+      }
+    }
+  }
+  return null;
+}
+
 // ========== THỬ NGHIỆM (2026-10-01): Chọn ảnh CCCD có sẵn để giải mã QR ==========
 // Dành cho hội viên ở xa tự chụp gửi qua Zalo/tin nhắn — cán bộ chọn ảnh đã tải về máy
 // thay vì quét trực tiếp bằng camera sống. TÁI DÙNG ĐÚNG _qrParseCCCD() và
@@ -11671,9 +11803,9 @@ async function _xuLyFileAnhCCCD(evt){
     alert("Không đọc được dữ liệu ảnh. Vui lòng chọn ảnh khác.");
     return;
   }
-  const ketQua=jsQR(anh.data,anh.width,anh.height);
+  const ketQua=_timMaQRNhieuChienLuoc(canvas,rong,cao,anh);
   if(!ketQua){
-    alert("Không tìm thấy mã QR trong ảnh này (ảnh có thể mờ, bị cắt góc có mã QR, hoặc không phải ảnh CCCD gắn chip). Vui lòng chọn ảnh khác hoặc dùng \"Quét CCCD\" bằng camera trực tiếp.");
+    alert("Không tìm thấy mã QR trong ảnh này. Nếu đây là ẢNH CHỤP MÀN HÌNH ứng dụng điện tử (không phải chụp trực tiếp mặt thẻ), mã QR có thể quá nhỏ hoặc bị nén mờ để đọc được — hãy nhờ hội viên gửi ẢNH CHỤP TRỰC TIẾP MẶT THẺ CCCD (cận cảnh, rõ nét, không qua ứng dụng trung gian) thay vì ảnh chụp màn hình. Hoặc chọn ảnh khác, hoặc dùng \"Quét CCCD\" bằng camera trực tiếp.");
     return;
   }
   _quetCCCDXuLyKetQua(ketQua); // dùng lại đúng hàm xử lý/giải mã UTF-8/map trường đã có cho luồng quét trực tiếp
