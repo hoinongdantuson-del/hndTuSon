@@ -223,6 +223,35 @@
   .btn.small.btn-quet-cccd:hover{background:var(--paper-alt);border-color:var(--rice-dark);color:var(--rice-dark);}
   .btn-quet-cccd .icon-quet{font-size:22px;line-height:1;}
   .btn-quet-cccd .lbl-quet{font-size:11px;font-weight:700;line-height:1.15;color:var(--rice-dark);}
+  /* AUDIT 2026-10-02: chỉ báo "Đang nhận diện mã QR..." khi xử lý ảnh đã chọn (luồng "Chọn ảnh CCCD").
+     Xoay bằng CSS transform (chạy được cả khi luồng JS đang bận). */
+  .qr-xoay{width:34px;height:34px;margin:4px auto 0;border:4px solid var(--line);border-top-color:var(--rice);
+    border-radius:50%;animation:qrXoay .8s linear infinite;}
+  @keyframes qrXoay{to{transform:rotate(360deg);}}
+  /* AUDIT 2026-10-02: KHUNG HƯỚNG DẪN đặt thẻ khi quét CCCD bằng CAMERA TRỰC TIẾP (kiểu ứng dụng quét
+     giấy tờ): khung ~tỉ lệ thẻ CCCD (1.58:1) giữa khung hình, 4 góc bo tròn, vùng ngoài khung tối nhẹ,
+     3 chấm động phía trên báo đang quét, dòng hướng dẫn ngắn. CHỈ LÀ LỚP PHỦ HIỂN THỊ (pointer-events:none,
+     vẽ trên DOM): vòng quét vẫn drawImage + getImageData TOÀN BỘ khung hình video như trước, không cắt vùng.
+     Màu góc dùng --ochre (vàng đất trong bảng màu hệ thống) thay vì --rice: --rice xanh đậm gần như chìm
+     trên nền camera tối/vùng ngoài khung đã làm tối. Kích thước khung do JS (_datKhungQuetCCCD) tính theo
+     khung camera thực tế để đúng tỉ lệ ở mọi hướng/màn hình; CSS dưới là giá trị dự phòng ban đầu. */
+  .qr-khungcam{position:relative;border-radius:8px;overflow:hidden;background:#000;line-height:0;}
+  .qr-khungcam video{display:block;width:100%;max-height:60vh;object-fit:cover;background:#000;}
+  .qr-khung-phu{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;}
+  .qr-khung-the{position:relative;width:80%;aspect-ratio:1.58/1;border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,.45);}
+  .qr-goc{position:absolute;width:28px;height:28px;border:4px solid var(--ochre);}
+  .qr-goc.tl{top:-2px;left:-2px;border-right:none;border-bottom:none;border-top-left-radius:14px;}
+  .qr-goc.tr{top:-2px;right:-2px;border-left:none;border-bottom:none;border-top-right-radius:14px;}
+  .qr-goc.bl{bottom:-2px;left:-2px;border-right:none;border-top:none;border-bottom-left-radius:14px;}
+  .qr-goc.br{bottom:-2px;right:-2px;border-left:none;border-top:none;border-bottom-right-radius:14px;}
+  .qr-cham{position:absolute;left:50%;top:-16px;transform:translateX(-50%);display:flex;gap:6px;line-height:0;}
+  .qr-cham i{display:block;width:6px;height:6px;border-radius:50%;background:#F7F2E4;opacity:.3;animation:qrCham 1.2s ease-in-out infinite;}
+  .qr-cham i:nth-child(2){animation-delay:.2s;}
+  .qr-cham i:nth-child(3){animation-delay:.4s;}
+  @keyframes qrCham{0%,100%{opacity:.3;transform:scale(.8);}50%{opacity:1;transform:scale(1.2);}}
+  .qr-khung-chu{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:max-content;max-width:92%;text-align:center;
+    background:rgba(0,0,0,.5);color:#F7F2E4;font-size:12px;font-weight:600;line-height:1.3;padding:3px 10px;border-radius:999px;}
+  @media (prefers-reduced-motion:reduce){ .qr-cham i{animation:none;opacity:.8;} }
   input,select{font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;border-radius:6px;
     border:1px solid var(--line);background:var(--card);color:var(--ink);outline:none;}
   input:focus,select:focus{border-color:var(--rice);box-shadow:0 0 0 3px rgba(53,84,58,.12);}
@@ -11479,6 +11508,29 @@ function removeModalRoot(){
 // bấm Lưu — đi qua đúng saveModal() hiện có, không tạo đường lưu tắt.
 let _quetCCCDStream=null, _quetCCCDRAF=null;
 
+let _quetCCCDRO=null;
+// Khung hướng dẫn chỉ là lớp phủ hiển thị — KHÔNG đụng vòng quét (quet() bên dưới vẫn giải mã toàn bộ khung hình).
+function _datKhungQuetCCCD(){
+  const kc=document.getElementById("quetCCCD_khungCam"), the=document.getElementById("quetCCCD_khungThe");
+  if(!kc||!the) return;
+  const cw=kc.clientWidth, ch=kc.clientHeight;
+  if(!cw||!ch) return;
+  const TI_LE=1.58; // thẻ CCCD 85,6 x 54 mm (ID-1/CR80) ~ 1,585:1
+  let w=Math.min(cw*0.8, ch*0.8*TI_LE); // chiếm tối đa 80% bề ngang và 80% chiều cao khung camera, giữ đúng tỉ lệ
+  w=Math.max(80,Math.round(w));
+  the.style.width=w+"px"; the.style.height=Math.round(w/TI_LE)+"px";
+}
+function _khoiTaoKhungQuetCCCD(){
+  _datKhungQuetCCCD();
+  const kc=document.getElementById("quetCCCD_khungCam"), v=document.getElementById("quetCCCD_video");
+  // Khung camera đổi kích thước khi video nạp xong siêu dữ liệu/xoay máy -> tính lại. ResizeObserver bao hết các trường hợp;
+  // trình duyệt cũ không có thì dùng sự kiện resize.
+  if(window.ResizeObserver && kc){ _quetCCCDRO=new ResizeObserver(_datKhungQuetCCCD); _quetCCCDRO.observe(kc); }
+  else window.addEventListener("resize",_datKhungQuetCCCD);
+  if(v) v.addEventListener("loadedmetadata",_datKhungQuetCCCD);
+}
+function _anKhungQuetCCCD(){ const p=document.getElementById("quetCCCD_khungPhu"); if(p) p.style.display="none"; } // camera không dùng được -> bỏ khung hướng dẫn
+
 async function openQuetCCCD(){
   let root=document.getElementById("modal-root-quetcccd");
   if(!root){ root=document.createElement("div"); root.id="modal-root-quetcccd"; document.body.appendChild(root); }
@@ -11487,15 +11539,26 @@ async function openQuetCCCD(){
       <div class="modal" style="width:min(92vw,420px);text-align:center;" onclick="event.stopPropagation()">
         <div class="modal-head"><h2>📷 Quét CCCD</h2><button type="button" class="close-x" onclick="dongQuetCCCD()">✕</button></div>
         <div id="quetCCCD_trangThai" style="font-size:13px;margin-bottom:8px;">Đang mở camera...</div>
-        <video id="quetCCCD_video" playsinline autoplay muted style="width:100%;border-radius:8px;background:#000;max-height:60vh;object-fit:cover;"></video>
+        <div class="qr-khungcam" id="quetCCCD_khungCam">
+          <video id="quetCCCD_video" playsinline autoplay muted></video>
+          <div class="qr-khung-phu" id="quetCCCD_khungPhu" aria-hidden="true">
+            <div class="qr-khung-the" id="quetCCCD_khungThe">
+              <span class="qr-goc tl"></span><span class="qr-goc tr"></span><span class="qr-goc bl"></span><span class="qr-goc br"></span>
+              <span class="qr-cham"><i></i><i></i><i></i></span>
+              <span class="qr-khung-chu">Đặt thẻ CCCD vừa khít trong khung</span>
+            </div>
+          </div>
+        </div>
         <canvas id="quetCCCD_canvas" style="display:none;"></canvas>
         <div class="modal-actions" style="margin-top:12px;justify-content:center;">
           <button type="button" class="btn" onclick="dongQuetCCCD()">Huỷ, nhập tay</button>
         </div>
       </div>
     </div>`;
+  _khoiTaoKhungQuetCCCD();
   const trangThai=document.getElementById("quetCCCD_trangThai");
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    _anKhungQuetCCCD();
     trangThai.textContent="Trình duyệt này không hỗ trợ mở camera. Vui lòng nhập tay bên dưới.";
     trangThai.style.color="var(--brick)";
     setTimeout(dongQuetCCCD,2200);
@@ -11511,6 +11574,7 @@ async function openQuetCCCD(){
     // xác. Vì chỉ dùng "ideal", không cần thêm tầng try/catch dự phòng riêng cho độ phân giải.
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false});
   }catch(e){
+    _anKhungQuetCCCD();
     let ly="Không mở được camera. Vui lòng nhập tay bên dưới.";
     if(e && (e.name==="NotAllowedError"||e.name==="PermissionDeniedError")) ly="Bạn đã từ chối quyền camera. Cấp lại quyền trong cài đặt trình duyệt nếu muốn dùng quét, hoặc nhập tay bên dưới.";
     else if(e && (e.name==="NotFoundError"||e.name==="DevicesNotFoundError")) ly="Không tìm thấy camera trên thiết bị này. Vui lòng nhập tay bên dưới.";
@@ -11553,6 +11617,8 @@ async function openQuetCCCD(){
 
 function dongQuetCCCD(){
   if(_quetCCCDRAF){ cancelAnimationFrame(_quetCCCDRAF); _quetCCCDRAF=null; }
+  if(_quetCCCDRO){ _quetCCCDRO.disconnect(); _quetCCCDRO=null; }
+  window.removeEventListener("resize",_datKhungQuetCCCD);
   if(_quetCCCDStream){ _quetCCCDStream.getTracks().forEach(t=>t.stop()); _quetCCCDStream=null; }
   const root=document.getElementById("modal-root-quetcccd");
   if(root) root.innerHTML="";
@@ -11749,6 +11815,96 @@ function _timMaQRNhieuChienLuoc(canvas,rong,cao,anhGoc){
   return null;
 }
 
+// AUDIT 2026-10-02 (TỐC ĐỘ/CẢM NHẬN "Chọn ảnh CCCD"): sếp thấy nhận diện "hơi chậm" trên điện thoại.
+// ĐO THỰC TẾ (WebKit desktop, ảnh giả lập 12MP = cỡ ảnh điện thoại; không có API giả lập giảm CPU
+// nên số tuyệt đối trên điện thoại thật sẽ CHẬM HƠN vài lần — chưa đo được, chỉ ước lượng):
+//  - ảnh 12MP "dễ" (tìm thấy ngay lượt 1): ~0,9s, trong đó UI BỊ CHẶN LIÊN TỤC ~0,95s;
+//  - ảnh 12MP thất bại hoàn toàn: ~9,2s, 43 lượt, xử lý ~136 megapixel, UI ĐỨNG CỨNG suốt ~9,2s
+//    (10 lượt ở độ phân giải gốc 12MP chiếm ~7,5s; 33 lượt cỡ 800px gộp lại chỉ ~1,2s).
+// NGUYÊN NHÂN: (1) toàn bộ vòng quét chạy ĐỒNG BỘ trên luồng chính, không nhường luồng giao diện,
+// và KHÔNG có bất kỳ phản hồi trực quan nào -> người dùng thấy màn hình "đơ" -> cảm giác chậm;
+// (2) thực sự tốn kém ở ca khó/thất bại với ảnh lớn do dò ngưỡng ở độ phân giải gốc.
+// ĐÃ LÀM (không đổi tập chiến lược quét => KHÔNG đổi độ chính xác): chỉ báo "Đang nhận diện mã
+// QR..." hiện NGAY khi chọn xong ảnh (trước cả bước giải mã ảnh), nhường luồng giao diện giữa các
+// lượt thử (để chỉ báo vẽ lại/nút Huỷ bấm được), nút "Huỷ" dừng giữa chừng ca khó, dò ngưỡng theo
+// thứ tự từ giữa ra (90,110,70,130,50,...) để ca thành công sớm hơn trung bình, tái dùng 1 bộ đệm
+// ảnh cho mọi lượt dò ngưỡng thay vì sao chép ~48MB (ảnh 12MP) mỗi lượt (giảm áp lực bộ nhớ trên
+// điện thoại). KHÔNG hạ độ phân giải bước dò ngưỡng (không còn ảnh thật cần dò ngưỡng để kiểm
+// chứng độ chính xác sau khi hạ) và KHÔNG rút gọn danh sách 9 ngưỡng (mới có 1 ca thật làm bằng chứng).
+// Các hàm bản cũ (_nhiPhanHoaTheoNguong, _timMaQRThuNhieuNguong, _timMaQRNhieuChienLuoc) GIỮ NGUYÊN
+// không xoá (quy ước dự án), không còn được gọi.
+let _qrHuyNhanDien=false;
+const _QR_HUY={huy:true};
+const _NGUONG_NHI_PHAN_V2=[90,110,70,130,50,150,170,190,210]; // cùng tập 9 ngưỡng như bản cũ, chỉ đổi thứ tự thử
+const _nhuongUI=()=>new Promise(r=>setTimeout(r,0));
+let _qrLanNhuongCuoi=0; // CHỈ nhường luồng khi đã chạy liên tục >100ms — đo thực tế: nhường mỗi lượt làm ca thất bại tăng ~14-30% tổng thời gian; ngưỡng 100ms vẫn đủ để chỉ báo/nút Huỷ phản hồi kịp
+async function _nhuongNeuCan(){ const n=performance.now(); if(n-_qrLanNhuongCuoi>100){ await _nhuongUI(); _qrLanNhuongCuoi=performance.now(); } return _qrHuyNhanDien; }
+function _huyNhanDien(){ _qrHuyNhanDien=true; const el=document.getElementById("qrNhanDien_chu"); if(el) el.textContent="Đang huỷ..."; }
+function _hienChiBaoNhanDien(){
+  let root=document.getElementById("modal-root-dangnhandien");
+  if(!root){ root=document.createElement("div"); root.id="modal-root-dangnhandien"; document.body.appendChild(root); }
+  _qrHuyNhanDien=false; _qrLanNhuongCuoi=performance.now();
+  root.innerHTML=`
+    <div class="overlay" style="z-index:10000;">
+      <div class="modal" role="status" aria-live="polite" style="width:min(86vw,320px);text-align:center;" onclick="event.stopPropagation()">
+        <div class="qr-xoay" aria-hidden="true"></div>
+        <div id="qrNhanDien_chu" style="font-size:14px;font-weight:600;margin-top:12px;">Đang nhận diện mã QR...</div>
+        <div id="qrNhanDien_phu" style="font-size:12px;opacity:.7;margin-top:4px;">Ảnh lớn có thể mất vài giây</div>
+        <div class="modal-actions" style="margin-top:12px;justify-content:center;"><button type="button" class="btn small" onclick="_huyNhanDien()">Huỷ</button></div>
+      </div>
+    </div>`;
+}
+function _anChiBaoNhanDien(){ const root=document.getElementById("modal-root-dangnhandien"); if(root) root.innerHTML=""; }
+function _capNhatChiBaoNhanDien(chu){ const el=document.getElementById("qrNhanDien_phu"); if(el) el.textContent=chu; }
+function _baoLoiAnh(thongBao){ _anChiBaoNhanDien(); alert(thongBao); } // gỡ chỉ báo TRƯỚC khi alert (alert chặn luồng)
+function _nhiPhanHoaVaoBo(anh,nguong,bo){
+  const s=anh.data, d=bo.data;
+  for(let i=0;i<s.length;i+=4){ const v=((s[i]+s[i+1]+s[i+2])/3)>nguong?255:0; d[i]=d[i+1]=d[i+2]=v; d[i+3]=s[i+3]; } // cùng công thức/giá trị với _nhiPhanHoaTheoNguong
+  return bo;
+}
+async function _timMaQRThuNhieuNguongV2(anh){
+  const bo=new ImageData(anh.width,anh.height);
+  for(const nguong of _NGUONG_NHI_PHAN_V2){
+    _nhiPhanHoaVaoBo(anh,nguong,bo);
+    const kq=jsQR(bo.data,bo.width,bo.height);
+    if(kq) return kq;
+    if(await _nhuongNeuCan()) return _QR_HUY;
+  }
+  return null;
+}
+async function _timMaQRNhieuChienLuocV2(canvas,rong,cao,anhGoc){
+  // CÙNG thứ tự tầng như bản cũ: gốc -> dò ngưỡng gốc -> chuẩn hoá 800px -> dò ngưỡng 800px -> dải/lưới.
+  let kq=jsQR(anhGoc.data,anhGoc.width,anhGoc.height);
+  if(kq) return kq;
+  if(await _nhuongNeuCan()) return _QR_HUY;
+  _capNhatChiBaoNhanDien("Đang thử kỹ hơn...");
+  kq=await _timMaQRThuNhieuNguongV2(anhGoc);
+  if(kq) return kq;
+  const anhChuanHoa=_vungAnhPhongTo(canvas,0,0,rong,cao);
+  kq=jsQR(anhChuanHoa.data,anhChuanHoa.width,anhChuanHoa.height);
+  if(kq) return kq;
+  kq=await _timMaQRThuNhieuNguongV2(anhChuanHoa);
+  if(kq) return kq;
+  _capNhatChiBaoNhanDien("Đang thử chia nhỏ ảnh để tìm mã QR...");
+  for(const [soCot,soHang] of [[1,2],[2,1],[2,2],[1,3],[3,1],[3,3]]){
+    const bienChong=0.15;
+    const oRong=rong/soCot, oCao=cao/soHang;
+    for(let hang=0;hang<soHang;hang++){
+      for(let cot=0;cot<soCot;cot++){
+        let sx=cot*oRong-oRong*bienChong, sy=hang*oCao-oCao*bienChong;
+        let sw=oRong*(1+2*bienChong), sh=oCao*(1+2*bienChong);
+        sx=Math.max(0,sx); sy=Math.max(0,sy);
+        sw=Math.min(rong-sx,sw); sh=Math.min(cao-sy,sh);
+        const vung=_vungAnhPhongTo(canvas,sx,sy,sw,sh);
+        kq=jsQR(vung.data,vung.width,vung.height);
+        if(kq) return kq;
+        if(await _nhuongNeuCan()) return _QR_HUY;
+      }
+    }
+  }
+  return null;
+}
+
 // ========== THỬ NGHIỆM (2026-10-01): Chọn ảnh CCCD có sẵn để giải mã QR ==========
 // Dành cho hội viên ở xa tự chụp gửi qua Zalo/tin nhắn — cán bộ chọn ảnh đã tải về máy
 // thay vì quét trực tiếp bằng camera sống. TÁI DÙNG ĐÚNG _qrParseCCCD() và
@@ -11769,6 +11925,11 @@ async function _xuLyFileAnhCCCD(evt){
     return;
   }
   if(!state.modal) return; // phòng trường hợp modal Thêm hội viên đã bị đóng trong lúc chọn file
+  // Hiện chỉ báo NGAY (trước cả bước giải mã ảnh — ảnh 12MP giải mã cũng mất thời gian), rồi chờ 1 nhịp để
+  // trình duyệt kịp VẼ chỉ báo trước khi vòng quét đồng bộ chiếm luồng chính.
+  _hienChiBaoNhanDien();
+  await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
+  try{
   let anhNguon=null, urlTam=null;
   try{
     if(window.createImageBitmap){
@@ -11781,14 +11942,14 @@ async function _xuLyFileAnhCCCD(evt){
     }
   }catch(e){
     if(urlTam) URL.revokeObjectURL(urlTam);
-    alert("Không đọc được file này — có thể không phải ảnh hợp lệ hoặc bị hỏng. Vui lòng chọn ảnh khác hoặc dùng camera trực tiếp.");
+    _baoLoiAnh("Không đọc được file này — có thể không phải ảnh hợp lệ hoặc bị hỏng. Vui lòng chọn ảnh khác hoặc dùng camera trực tiếp.");
     return;
   }
   const rong=anhNguon.width||anhNguon.naturalWidth, cao=anhNguon.height||anhNguon.naturalHeight;
   if(!rong || !cao){
     if(anhNguon.close) anhNguon.close();
     if(urlTam) URL.revokeObjectURL(urlTam);
-    alert("Không đọc được kích thước ảnh này. Vui lòng chọn ảnh khác.");
+    _baoLoiAnh("Không đọc được kích thước ảnh này. Vui lòng chọn ảnh khác.");
     return;
   }
   const canvas=document.createElement("canvas");
@@ -11800,15 +11961,19 @@ async function _xuLyFileAnhCCCD(evt){
   let anh=null;
   try{ anh=ctx.getImageData(0,0,canvas.width,canvas.height); }catch(e){}
   if(!anh){
-    alert("Không đọc được dữ liệu ảnh. Vui lòng chọn ảnh khác.");
+    _baoLoiAnh("Không đọc được dữ liệu ảnh. Vui lòng chọn ảnh khác.");
     return;
   }
-  const ketQua=_timMaQRNhieuChienLuoc(canvas,rong,cao,anh);
+  const ketQua=await _timMaQRNhieuChienLuocV2(canvas,rong,cao,anh);
+  if(ketQua===_QR_HUY) return; // người dùng bấm Huỷ — không báo lỗi
   if(!ketQua){
-    alert("Không tìm thấy mã QR trong ảnh này. Nếu đây là ẢNH CHỤP MÀN HÌNH ứng dụng điện tử (không phải chụp trực tiếp mặt thẻ), mã QR có thể quá nhỏ hoặc bị nén mờ để đọc được — hãy nhờ hội viên gửi ẢNH CHỤP TRỰC TIẾP MẶT THẺ CCCD (cận cảnh, rõ nét, không qua ứng dụng trung gian) thay vì ảnh chụp màn hình. Hoặc chọn ảnh khác, hoặc dùng \"Quét CCCD\" bằng camera trực tiếp.");
+    _baoLoiAnh("Không tìm thấy mã QR trong ảnh này. Nếu đây là ẢNH CHỤP MÀN HÌNH ứng dụng điện tử (không phải chụp trực tiếp mặt thẻ), mã QR có thể quá nhỏ hoặc bị nén mờ để đọc được — hãy nhờ hội viên gửi ẢNH CHỤP TRỰC TIẾP MẶT THẺ CCCD (cận cảnh, rõ nét, không qua ứng dụng trung gian) thay vì ảnh chụp màn hình. Hoặc chọn ảnh khác, hoặc dùng \"Quét CCCD\" bằng camera trực tiếp.");
     return;
   }
+  _anChiBaoNhanDien();
+  if(!state.modal) return; // form Thêm hội viên đã bị đóng trong lúc xử lý -> không điền
   _quetCCCDXuLyKetQua(ketQua); // dùng lại đúng hàm xử lý/giải mã UTF-8/map trường đã có cho luồng quét trực tiếp
+  } finally { _anChiBaoNhanDien(); } // luôn gỡ chỉ báo, kể cả khi có ngoại lệ
 }
 
 // ---------- Actions ----------
