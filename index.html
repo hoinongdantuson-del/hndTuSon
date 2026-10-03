@@ -230,7 +230,7 @@
   @keyframes qrXoay{to{transform:rotate(360deg);}}
   /* AUDIT 2026-10-02: KHUNG HƯỚNG DẪN đặt thẻ khi quét CCCD bằng CAMERA TRỰC TIẾP (kiểu ứng dụng quét
      giấy tờ): khung ~tỉ lệ thẻ CCCD (1.58:1) giữa khung hình, 4 góc bo tròn, vùng ngoài khung tối nhẹ,
-     3 chấm động phía trên báo đang quét, dòng hướng dẫn ngắn. CHỈ LÀ LỚP PHỦ HIỂN THỊ (pointer-events:none,
+     3 chấm động phía trên báo đang quét, dòng hướng dẫn ngắn. (2026-10-03: khung tối đa 90%, ngoài khung tối 28%.) CHỈ LÀ LỚP PHỦ HIỂN THỊ (pointer-events:none,
      vẽ trên DOM): vòng quét vẫn drawImage + getImageData TOÀN BỘ khung hình video như trước, không cắt vùng.
      Màu góc dùng --ochre (vàng đất trong bảng màu hệ thống) thay vì --rice: --rice xanh đậm gần như chìm
      trên nền camera tối/vùng ngoài khung đã làm tối. Kích thước khung do JS (_datKhungQuetCCCD) tính theo
@@ -238,13 +238,13 @@
   .qr-khungcam{position:relative;border-radius:8px;overflow:hidden;background:#000;line-height:0;}
   .qr-khungcam video{display:block;width:100%;max-height:60vh;object-fit:cover;background:#000;}
   .qr-khung-phu{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;}
-  .qr-khung-the{position:relative;width:80%;aspect-ratio:1.58/1;border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,.45);}
+  .qr-khung-the{position:relative;width:90%;aspect-ratio:1.58/1;border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,.28);}
   .qr-goc{position:absolute;width:28px;height:28px;border:4px solid var(--ochre);}
   .qr-goc.tl{top:-2px;left:-2px;border-right:none;border-bottom:none;border-top-left-radius:14px;}
   .qr-goc.tr{top:-2px;right:-2px;border-left:none;border-bottom:none;border-top-right-radius:14px;}
   .qr-goc.bl{bottom:-2px;left:-2px;border-right:none;border-top:none;border-bottom-left-radius:14px;}
   .qr-goc.br{bottom:-2px;right:-2px;border-left:none;border-top:none;border-bottom-right-radius:14px;}
-  .qr-cham{position:absolute;left:50%;top:-16px;transform:translateX(-50%);display:flex;gap:6px;line-height:0;}
+  .qr-cham{position:absolute;left:50%;top:var(--qr-cham-top,-16px);transform:translateX(-50%);display:flex;gap:6px;line-height:0;}
   .qr-cham i{display:block;width:6px;height:6px;border-radius:50%;background:#F7F2E4;opacity:.3;animation:qrCham 1.2s ease-in-out infinite;}
   .qr-cham i:nth-child(2){animation-delay:.2s;}
   .qr-cham i:nth-child(3){animation-delay:.4s;}
@@ -11516,9 +11516,15 @@ function _datKhungQuetCCCD(){
   const cw=kc.clientWidth, ch=kc.clientHeight;
   if(!cw||!ch) return;
   const TI_LE=1.58; // thẻ CCCD 85,6 x 54 mm (ID-1/CR80) ~ 1,585:1
-  let w=Math.min(cw*0.8, ch*0.8*TI_LE); // chiếm tối đa 80% bề ngang và 80% chiều cao khung camera, giữ đúng tỉ lệ
+  // AUDIT 2026-10-03: nâng giới hạn 80% -> 90% (và giảm độ tối ngoài khung 45% -> 28% ở CSS) vì sếp thấy khung camera "nhỏ lại"
+  // so với trước khi có khung — chỉ thay đổi HIỂN THỊ, không đụng vùng pixel đưa vào jsQR.
+  let w=Math.min(cw*0.9, ch*0.9*TI_LE); // chiếm tối đa 90% bề ngang và 90% chiều cao khung camera, giữ đúng tỉ lệ
   w=Math.max(80,Math.round(w));
-  the.style.width=w+"px"; the.style.height=Math.round(w/TI_LE)+"px";
+  const h=Math.round(w/TI_LE);
+  the.style.width=w+"px"; the.style.height=h+"px";
+  // 3 chấm động: đặt ngay phía trên khung khi còn đủ chỗ (>=20px); khung cao 90% có thể chỉ chừa ~10px nên
+  // khi đó đặt sát mép TRONG phía trên khung để không bị cắt mất.
+  the.style.setProperty("--qr-cham-top", ((ch-h)/2>=20) ? "-16px" : "8px");
 }
 function _khoiTaoKhungQuetCCCD(){
   _datKhungQuetCCCD();
