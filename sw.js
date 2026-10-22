@@ -1,5 +1,8 @@
-// Service Worker cho "Sổ hội viên số" — bản phát hành TS148 ngày 18/10/2026 (gói _pkg148-18-10).
-// Nội dung từ sw-TEST-dot2.js (bản thử Đợt 2, đã kiểm ở các đợt 2–3C); chỉ đổi phần đầu này và tên bộ đệm.
+// Service Worker cho "Sổ hội viên số" — bản phát hành TS148 gói d (_pkg148-22-10d), Đợt 3E (bản cuối): GIỐNG HỆT gói b, chỉ đổi tên bộ đệm.
+// Nội dung từ gói bản 1 (_pkg148-18-10/sw.js, = sw-TEST-dot2.js + tên bộ đệm); Đợt 3D chỉ đổi bước CÀI (install) và KÍCH HOẠT (activate):
+//  (b) lúc cài, trang chính ("./" và "./index.html") BẮT BUỘC tải được và là trang phần mềm hợp lệ (laTrangPhanMemHopLe) — không thì
+//      lần cài THẤT BẠI (bản đang chạy và bộ đệm cũ giữ nguyên; lần mở sau trình duyệt tự thử cài lại). Thư viện CDN lỗi vẫn bỏ qua từng tệp.
+//  (a) lúc kích hoạt, CHỈ xoá bộ đệm cũ khi bộ đệm mới đã có trang chính hợp lệ.
 //
 // Cách hoạt động: lần đầu mở (có mạng), trình duyệt tự lưu lại các file chính (trang chính, biểu tượng, thư
 // viện...) vào bộ nhớ đệm ngay trên máy. Từ lần sau, mở được cả khi mất mạng hoặc mạng rất yếu.
@@ -13,7 +16,7 @@
 // CHỈ lưu khi phản hồi hợp lệ (200, cùng nguồn, là HTML) VÀ đúng là trang phần mềm (có dấu nhận diện bên trong).
 // Đồng thời KHÔNG còn trả trang chính thay cho file script/ảnh bị lỗi (trước đây gây "SyntaxError: '<'").
 
-const TEN_CACHE = "so-hoi-vien-v193"; // TS148 phát hành 18/10/2026 (bản 2-10 là v192) — đổi tên để máy đã cài tự lấy bản mới và xoá bộ đệm cũ
+const TEN_CACHE = "so-hoi-vien-v196"; // TS148 gói d (Đợt 3E bản cuối, 22/10/2026). v192 = bản 2-10, v193 = gói bản 1, v194 = gói b, v195 = gói c (lưu, không dùng). Đổi tên để máy đã cài tự lấy bản mới và xoá bộ đệm cũ (quy tắc A1)
 const CAC_FILE_CAN_LUU = [
   "./",
   "./index.html",
@@ -30,24 +33,48 @@ const CAC_FILE_CAN_LUU = [
 // Dấu nhận diện "đúng là trang phần mềm" — chuỗi có sẵn trong mã trang chính (biến hiển thị phiên bản).
 const DAU_NHAN_DIEN_TRANG = "PHIEN_BAN_HIEN_THI";
 
+// Trang chính BẮT BUỘC (Đợt 3D / D1-b): phải tải được và là trang phần mềm hợp lệ, không thì cả lần cài thất bại.
+const TRANG_CHINH = ["./", "./index.html"];
 // Lưu TỪNG FILE RIÊNG LẺ (không dùng cache.addAll gộp chung): 1 file lỗi (đặc biệt file ở máy chủ ngoài) không
 // được làm hỏng việc lưu các file còn lại — đây từng là nguyên nhân "có mạng mở được nhưng offline không vào được".
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(TEN_CACHE).then((cache) =>
-      Promise.all(CAC_FILE_CAN_LUU.map((url) =>
-        cache.add(url).catch((err) => { console.warn("Không lưu được offline (bỏ qua, không ảnh hưởng file khác):", url, err); })
-      ))
-    )
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(TEN_CACHE);
+    try {
+      // (b) Trang chính: lưu bằng cache.add (lỗi 404 / 500 / mạng đứt giữa chừng -> cache.add báo lỗi), rồi KIỂM
+      //     CHÍNH BẢN ĐÃ LƯU: 200 / cùng nguồn / HTML / có dấu nhận diện. Trang Wi-Fi công cộng (200 nhưng không phải phần mềm) -> ném lỗi ->
+      //     lần cài thất bại -> bản cũ và bộ đệm cũ giữ nguyên. Kiểm CHÍNH bản đã lưu (không phải một bản tải riêng) nên cái được
+      //     lưu chắc chắn là cái đã kiểm; bộ nhớ đệm ghi lỗi (vd đầy / không ghi được) cũng làm lần cài thất bại thay vì cài "rỗng".
+      for (const url of TRANG_CHINH) {
+        await cache.add(url); // như gói bản 1; _headers đặt no-store cho trang chính nên luôn lấy bản mới từ máy chủ
+        const daLuu = await cache.match(url);
+        if (!(await laTrangPhanMemHopLe(daLuu))) throw new Error("Trang chính không hợp lệ khi cài: " + url + " (HTTP " + (daLuu && daLuu.status) + ")");
+      }
+    } catch (err) {
+      console.warn("Huỷ lần cài bản mới (giữ bản đang chạy, lần mở sau sẽ thử lại):", err);
+      await caches.delete(TEN_CACHE).catch(() => {}); // bỏ bộ đệm mới dở dang
+      throw err;
+    }
+    // Các tệp còn lại (biểu tượng, manifest, thư viện CDN, phông chữ): lỗi tệp nào bỏ qua tệp đó như trước.
+    await Promise.all(CAC_FILE_CAN_LUU.filter((url) => !TRANG_CHINH.includes(url)).map((url) =>
+      cache.add(url).catch((err) => { console.warn("Không lưu được offline (bỏ qua, không ảnh hưởng file khác):", url, err); })
+    ));
+  })());
   // AUDIT #9 (2026-09-12): KHÔNG tự skipWaiting — chờ người dùng bấm "Tải lại ngay" ở banner (thông điệp SKIP_WAITING).
 });
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
-// Dọn bộ nhớ đệm phiên bản cũ khi bản mới được kích hoạt.
+// Dọn bộ nhớ đệm phiên bản cũ khi bản mới được kích hoạt — (a) Đợt 3D / D1-a: CHỈ khi bộ đệm mới đã có trang chính hợp lệ;
+// không có (vd bộ đệm bị trình duyệt dọn giữa lúc cài và lúc kích hoạt) thì GIỮ bộ đệm cũ để máy vẫn mở được khi mất mạng.
 self.addEventListener("activate", (event) => {
-  event.waitUntil(caches.keys().then((ds) => Promise.all(ds.filter((t) => t !== TEN_CACHE).map((t) => caches.delete(t)))));
+  event.waitUntil((async () => {
+    let coTrangChinh = false;
+    try { const c = await caches.open(TEN_CACHE); const tc = await c.match("./index.html"); coTrangChinh = !!tc && await laTrangPhanMemHopLe(tc); } catch (e) { coTrangChinh = false; }
+    if (!coTrangChinh) { console.warn("Bộ đệm mới chưa có trang chính hợp lệ — giữ bộ đệm cũ."); return; }
+    const ds = await caches.keys();
+    await Promise.all(ds.filter((t) => t !== TEN_CACHE).map((t) => caches.delete(t)));
+  })());
   self.clients.claim();
 });
 
