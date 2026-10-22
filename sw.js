@@ -1,4 +1,4 @@
-// Service Worker cho "Sổ hội viên số" — bản phát hành TS148 gói d (_pkg148-22-10d), Đợt 3E (bản cuối): GIỐNG HỆT gói b, chỉ đổi tên bộ đệm.
+// Service Worker cho "Sổ hội viên số" — bản phát hành TS148 gói d (_pkg148-23-10d), Đợt 3E v3 (BẢN CUỐI): GIỐNG HỆT gói b / gói c, chỉ đổi tên bộ đệm.
 // Nội dung từ gói bản 1 (_pkg148-18-10/sw.js, = sw-TEST-dot2.js + tên bộ đệm); Đợt 3D chỉ đổi bước CÀI (install) và KÍCH HOẠT (activate):
 //  (b) lúc cài, trang chính ("./" và "./index.html") BẮT BUỘC tải được và là trang phần mềm hợp lệ (laTrangPhanMemHopLe) — không thì
 //      lần cài THẤT BẠI (bản đang chạy và bộ đệm cũ giữ nguyên; lần mở sau trình duyệt tự thử cài lại). Thư viện CDN lỗi vẫn bỏ qua từng tệp.
@@ -16,7 +16,7 @@
 // CHỈ lưu khi phản hồi hợp lệ (200, cùng nguồn, là HTML) VÀ đúng là trang phần mềm (có dấu nhận diện bên trong).
 // Đồng thời KHÔNG còn trả trang chính thay cho file script/ảnh bị lỗi (trước đây gây "SyntaxError: '<'").
 
-const TEN_CACHE = "so-hoi-vien-v196"; // TS148 gói d (Đợt 3E bản cuối, 22/10/2026). v192 = bản 2-10, v193 = gói bản 1, v194 = gói b, v195 = gói c (lưu, không dùng). Đổi tên để máy đã cài tự lấy bản mới và xoá bộ đệm cũ (quy tắc A1)
+const TEN_CACHE = "so-hoi-vien-v197"; // TS148 gói d BẢN CUỐI (Đợt 3E v3, 23/10/2026). v192 = 2-10, v193 = gói bản 1, v194 = gói b, v195 = gói c, v196 = gói 22-10d (theo đính chính trước, không dùng). Đổi tên để máy đã cài tự lấy bản mới và xoá bộ đệm cũ (quy tắc A1)
 const CAC_FILE_CAN_LUU = [
   "./",
   "./index.html",
